@@ -13,6 +13,27 @@ from elephant.spike_train_dissimilarity import victor_purpura_distance
 from neo import SpikeTrain
 import scipy
 
+def plot_w_k(axes_array, means, sds, title_list):
+    axes = sum([list(axes_array[0]), list(axes_array[1])], [])
+    slopes = []
+    intercepts = []
+    r_vals = []
+    p_vals = []
+    for i in range(len(means)):
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(means[i], sds[i])
+        slopes.append(slope)
+        intercepts.append(intercept)
+        r_vals.append(r_value)
+        p_vals.append(p_value)
+        axes[i].scatter(means[i], sds[i])
+        axes[i].plot(means[i], slope * np.array(means[i]) + intercept)
+        axes[i].set_title(title_list[i])
+        axes[i].text(min(means[i]), max(sds[i]), "R^2: " + str(r_value**2))
+    plt.ion()
+    plt.show()
+    plt.draw()
+    plt.pause(0.01)
+    return slopes, intercepts, r_vals, p_vals
 
 def plot_traces(x_array, trace_list, samp_period, legend_labels, title):
     fig, ax = plt.subplots()
@@ -61,9 +82,11 @@ def compile_unique_interval_list(intervals, tolerance):
             indices.append(len(unique_interval_list) - 1)
     return unique_interval_list, indices
 
+# append data to path
+
 xlsxfiles = []
-for file in glob.glob("*.xlsx"):
-    if file[0] == '2': # starts with the date, so the type of file we want, i.e., 2021_...
+for file in glob.glob("../data/*.xlsx"):
+    if file[0:9] == '../data/2': # starts with the date, so the type of file we want, i.e., 2021_...
         xlsxfiles.append(file)
 
 xlsxfiles.sort(reverse=True)
@@ -72,7 +95,6 @@ xlsxfiles.sort(reverse=True)
 
 worksheet_data_begin_indices = [4, 1]
 variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
-num_conditions = 3 # pre stim, during stim, post stim
 
 # determine len x axis
  
@@ -171,8 +193,8 @@ for i in range(len(ems_constants.rhythm_strings)):
         if contact_trace_copy[j] == 1:
             surpressed_contact_trace[j+1] = 0
 
-    for k in range(num_conditions): # for each condition (audio only, ems and audio, post_ems audio only test)
-        for j in range(repeat_list[k]): # for each repeat of the rhythm in this condition
+    for k in range(ems_constants.num_phases): # for each phase (audio only, ems and audio, post_ems audio only test)
+        for j in range(repeat_list[k]): # for each repeat of the rhythm in this phase
             loop_begin = delays_list[k] + j * len_rhythm_ms - 0.5*ems_constants.milliseconds_per_eighthnote #include half an eighthnote before
             loop_end = loop_begin + len_rhythm_ms + 1 * ems_constants.milliseconds_per_eighthnote #include one eighthnote after as well
             contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
@@ -217,22 +239,22 @@ for i in range(len(ems_constants.rhythm_strings)):
 
     # get intervals in this rhythm
     var_lists = []
-    for k in range(num_conditions):
+    for k in range(ems_constants.num_phases):
         ground_truth_intervals = []
         user_intervals = []
         user_error = []
-        this_condition_bools = np.logical_and((audio_onset_times > delays_list[k]), (audio_onset_times < delays_list[k+1]))
-        condition_audio_onsets = audio_onset_times[this_condition_bools]
-        for j in range(len(condition_audio_onsets)-1):
-            gt_interval = condition_audio_onsets[j+1] - condition_audio_onsets[j]
+        this_phase_bools = np.logical_and((audio_onset_times > delays_list[k]), (audio_onset_times < delays_list[k+1]))
+        phase_audio_onsets = audio_onset_times[this_phase_bools]
+        for j in range(len(phase_audio_onsets)-1):
+            gt_interval = phase_audio_onsets[j+1] - phase_audio_onsets[j]
             # get nearest response pulse to audio
-            arg_min = np.argmin(np.abs(np.subtract(surpressed_contact_onset_times, condition_audio_onsets[j+1]))) # throws out the first one...
-            user_interval = surpressed_contact_onset_times[arg_min] - condition_audio_onsets[j]#response time user - previous audio pulse
+            arg_min = np.argmin(np.abs(np.subtract(surpressed_contact_onset_times, phase_audio_onsets[j+1]))) # throws out the first one...
+            user_interval = surpressed_contact_onset_times[arg_min] - phase_audio_onsets[j]#response time user - previous audio pulse
             ground_truth_intervals.append(gt_interval)
             user_intervals.append(user_interval)
             user_error.append(np.abs(gt_interval-user_interval))
         var_list = [ground_truth_intervals, user_intervals, user_error]
-        var_lists.append(var_list) # now has each WK relevant variable for each condition
+        var_lists.append(var_list) # now has each WK relevant variable for each phase
 
     list_of_WK_var_lists.append(var_lists)
 
@@ -241,22 +263,20 @@ print("done")
 
 # organize intervals
 
-slopes = []
-intercepts = []
-r_sqs = []
-
-# wing kris across rhythms for each condition
-for i in range(num_conditions):
-    list_of_vars_for_condition = [] # first dim, len_rhythm_types long. second dim, condition, third, ground truth, user, user_error.
+means = []
+sds = []
+# wing kris across rhythms for each phase
+for i in range(ems_constants.num_phases):
+    list_of_vars_for_phase = [] # first dim, len_rhythm_types long. second dim, phase, third, ground truth, user, user_error.
     for j in range(len(ems_constants.rhythm_strings)):
-        list_of_vars_for_condition.append(list_of_WK_var_lists[j][i])
-    ground_truth_intervs_across_rhythms = [el[0] for el in list_of_vars_for_condition] # get all gt intervals
+        list_of_vars_for_phase.append(list_of_WK_var_lists[j][i])
+    ground_truth_intervs_across_rhythms = [el[0] for el in list_of_vars_for_phase] # get all gt intervals
     ground_truth_intervs_across_rhythms_flat = sum(ground_truth_intervs_across_rhythms, [])
     # get list of unique intervals and indices that map all intervals to their assigned unique interval
     unique_gt_intervals, indices = compile_unique_interval_list(ground_truth_intervs_across_rhythms_flat, ems_constants.interval_tolerance)
-    user_intervals_across_rhythms = [el[1] for el in list_of_vars_for_condition] # get all user intervasl
+    user_intervals_across_rhythms = [el[1] for el in list_of_vars_for_phase] # get all user intervasl
     user_intervals_across_rhythms_flat = sum(user_intervals_across_rhythms, [])
-    list_of_user_intervals_by_target_interval = [[]] * len(unique_gt_intervals) # make a list of lists as long as unique intervals
+    list_of_user_intervals_by_target_interval = [[] for _ in range(len(unique_gt_intervals))] # make a list of lists as long as unique intervals
     for k in range(len(user_intervals_across_rhythms_flat)): # for every user interval
         target_interval_index = indices[k] # find its unique target 
         # now add it to the list of intervals produced for that target
@@ -264,18 +284,21 @@ for i in range(num_conditions):
         list_of_user_intervals_by_target_interval[target_interval_index].append(user_intervals_across_rhythms_flat[k])
     interval_means_list = [sum(item_list)/len(item_list) for item_list in list_of_user_intervals_by_target_interval]
     interval_sd_list = [np.std(item_list) for item_list in list_of_user_intervals_by_target_interval]
-    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(interval_means_list, interval_sd_list) 
-    rsq = r_value**2
-    slopes.append(slope)
-    intercepts.append(intercept)
-    r_sqs.append(rsq)
+    means.append(interval_means_list)
+    sds.append(interval_sd_list)
 
-fig, ax = plt.subplots()
+fig, axes = plt.subplots(2,2) # change this according to num phase?
+titles = ems_constants.phase_name_strs
+slopes, intercepts, r_values, p_values = plot_w_k(axes, means, sds, titles)
 
+    
+
+
+fig, ax = plt.subplots() # change this according to num phase?
 legend_labels = ["clock var", "motor var"]
 ax.plot(np.arange(len(slopes)), slopes/max(slopes))
 ax.plot(np.arange(len(intercepts)), intercepts/max(intercepts))
-ax.legend(label_list)
+ax.legend(legend_labels)
 
 ax.set_title("normalized variances for clock and motor across epochs")
 plt.ion()

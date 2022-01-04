@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import datetime
 import serial
 import time
+import openEMSstim
 
 LENGTH_BEGIN = 165
 LENGTH_END = 270
