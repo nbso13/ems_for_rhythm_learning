@@ -51,4 +51,10 @@ dependencies:
   - xz=5.2.5=h1de35cc_0
   - zlib=1.2.11=h4dc903c_4
   - zstd=1.4.9=h322a384_0
+  - pip:
+    - elephant==0.10.0
+    - neo==0.10.0
+    - quantities==0.12.5
+    - scipy==1.7.3
+    - tqdm==4.62.3
 prefix: /Applications/anaconda3/envs/ems_4_rhyth
