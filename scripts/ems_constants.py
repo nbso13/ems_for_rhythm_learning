@@ -38,3 +38,5 @@ double_stroke_rhythm = "101001010010101001010010100"
 interval_tolerance = 40 #ms
 phase_name_strs = ["pre_ems", "ems_audio", "post_ems"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
+port_contact = '/dev/cu.usbmodem143101'
+port_ems = '/dev/tty.usbserial-18DNB483'
