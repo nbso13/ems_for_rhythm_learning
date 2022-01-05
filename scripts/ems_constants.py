@@ -15,6 +15,7 @@ rhythm_strings = [to_the_beat_substr, clave_substr, five_to_four_substr, three_t
     syncopated_substr, bass_drum_pattern, flip_the_beat, telescoping]
 rhythm_strings_names = ["to_the_beat", "clave", "five_to_four", "three_to_four", "seven_to_four", \
     "syncopated_substr", "bass_drum_pattern", "flip_the_beat", "telescoping"]
+bpms = [90, 95, 100, 105, 110, 115, 120] #bpms to try
 repeats = 2 # ems and audio period repeats
 audio_repeats = 2
 post_ems_repeats = 2 # how many post ems repeats

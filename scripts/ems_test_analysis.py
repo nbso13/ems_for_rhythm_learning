@@ -85,7 +85,7 @@ def compile_unique_interval_list(intervals, tolerance):
 # append data to path
 
 xlsxfiles = []
-for file in glob.glob("../data/*.xlsx"):
+for file in glob.glob("../data/*.xlsx"):   
     if file[0:9] == '../data/2': # starts with the date, so the type of file we want, i.e., 2021_...
         xlsxfiles.append(file)
 
