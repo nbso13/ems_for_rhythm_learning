@@ -14,7 +14,7 @@ import time
 
 def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rhythm_substr, \
     repeats, bpm, metronome_intro_flag, audio_pre_display_flag, audio_repeats, post_ems_test_flag, post_ems_repeats,  \
-        samp_period_ms, delay_val):
+        no_audio_repeats, samp_period_ms, delay_val):
         # mammoth function that should be broken up. takes in serial objects, rhythm parameters,
         # whether the EMS and the audio should be turned on, whether there should be a metronome intro,
         # sample period, and measured delay value. Plays the rhythm in audio and EMS and runs threading
@@ -33,7 +33,7 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     milliseconds_per_eighthnote = 30000/bpm
 
     ## start reading thread ##
-    len_pres = 3000 + milliseconds_per_eighthnote*(len(count_in_substr) + (audio_repeats+repeats+post_ems_repeats) *  \
+    len_pres = 3000 + milliseconds_per_eighthnote*(len(count_in_substr) + (audio_repeats+repeats+post_ems_repeats+no_audio_repeats) *  \
         len(rhythm_substr)) + delay_val # length of rhythm presentation
     
     audio_onset_times = [] # when list of times audio began to play
@@ -47,7 +47,7 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     rhythm_display_flag = 1 # SHOULD display EMS and audio together after audio presentation.
     post_ems_test_flag = 1
     # total eighthnotes in count in, audio display, and rhythm display (EMS+audio)
-    total_eighthnotes = len(count_in_substr) + (repeats+audio_repeats+post_ems_repeats)*len(rhythm_substr) 
+    total_eighthnotes = len(count_in_substr) + (repeats+audio_repeats+post_ems_repeats+no_audio_repeats)*len(rhythm_substr) 
     time_naught_main = time.time() # beginning time for EMS and audio threads. 
     #WHY SHOULD THIS BE DIFFERENT THAN CONTACT THREAD?
 
@@ -160,7 +160,7 @@ def run_rhythm_audio(rhythm_display_flag, post_ems_test_flag, audio_onset_times,
     # count_in_substr - the string used to count in (usually hits on beats)
     # audio_pre_display_flag - if yes, play rhythm without ems (probably with audio) before playing rhythm with ems and after count in.
     # prerepeats - this is audio repeats
-    print("repeats: " + str(repeats) + ", prerepeats: " + str(pre_repeats) + ", post_ems repeats: " + str(post_ems_repeats))
+    # print("repeats: " + str(repeats) + ", prerepeats: " + str(pre_repeats) + ", post_ems repeats: " + str(post_ems_repeats))
     # print("AUDIO THREAD: Beginning metronome: " + str(time.time()-time_naught))
     last_time = time.time()
     first_time = np.copy(last_time)
@@ -234,7 +234,7 @@ def run_rhythm_audio(rhythm_display_flag, post_ems_test_flag, audio_onset_times,
 
 def metronome_tone(milliseconds_per_eighthnote, total_str_len):
     # plays tone on the beat repeatedly
-    AUDIO_DELAY = 0.0023
+    AUDIO_DELAY = ems_constants.audio_delay
     time.sleep(AUDIO_DELAY) # sleep for 2 ms to let audio catch up
     last_time = time.time()
     counter = 0 
@@ -468,7 +468,7 @@ def process_contact_trace_to_hit_times(contact_trace_array, x_values_array, thre
     time_points_out = time_points[nonsurpressedselector_bool]
     return time_points_out
 
-def test_double_stroke(ems_serial):
+def wrapper_test_double_stroke(ems_serial):
     out = input("test double stroke sensation?")
     if out == 'y':
         contin = True
@@ -490,10 +490,10 @@ def test_sounds():
 
 def load_sounds():
     global fourfourty_tone
-    fourfourty_tone = vlc.MediaPlayer("440Hz_44100Hz_16bit_05sec.mp3")
+    fourfourty_tone = vlc.MediaPlayer("tones/440Hz_44100Hz_16bit_05sec.mp3")
     global eighteighty_tone
-    eighteighty_tone = vlc.MediaPlayer("880hz.mp3")
-    # test_sounds()
+    eighteighty_tone = vlc.MediaPlayer("tones/880hz.mp3")
+    test_sounds()
     return
 
 def listen_serial(ems_serial):
@@ -516,14 +516,15 @@ def set_up_serials(port_ems, port_contact):
     
     ## read all setup from EMS
     listen_serial(ems_serial)
-    contact_serial = serial.Serial(port_contact, 9600) # baud number
+    contact_serial = serial.Serial(port_contact, 9600) # baud number 
+    #IF THIS IS THROWING A could not open port ERROR look for correct port at /dev/cu.usbmodem____ on mac.
     
     ## testing contact trace read
     # test_contact_trace_read(contact_serial)
     
     return ems_serial, contact_serial
 
-def write_headers(worksheet, label_header, data_header):
+def write_headers(worksheet, label_header, data_header, rotated_bpm_list):
     for i in range(len(label_header)):
         # first entry to write is the data row number
         worksheet.write(0, i, label_header[i], bold) # write in header values
@@ -537,8 +538,8 @@ def write_headers(worksheet, label_header, data_header):
         worksheet.write(4, i, ems_constants.rhythm_strings[i])
 
     worksheet.write(5, 0, "bpms: ")
-    for i in range(len(ems_constants.bpms)):
-        worksheet.write(5, i+1, ems_constants.bpms[i])
+    for i in range(len(rotated_bpm_list)):
+        worksheet.write(5, i+1, rotated_bpm_list[i])
 
     return
 
@@ -558,13 +559,13 @@ def measure_delay_loop(ems_serial, contact_serial, baseline_mean, baseline_sd):
         
         legend_labels = ["raw response trace", "stim trace",  "filtered response trace"]
         plot_contact_trace_and_rhythm(reading_results, contact_x_values, stim_trace, reaction_trace, x_vec,  \
-        ems_constants.samp_period_ms, legend_labels)
+        ems_constants.samp_period_ms, legend_labels, "Delay Measurement")
         
         print(f"Measured delay was {delay_mean} +/- {delay_std}.")
         
-        out = input("recalibrate double stroke intensity? y/n")
-        if out == 'y':
-            test_double_stroke(ems_serial)
+        # out = input("recalibrate double stroke intensity? y/n")
+        # if out == 'y':
+        #     test_double_stroke(ems_serial)
         
         out = input("y to proceed, n to try again, control C to quit.")
         if out == 'y':
@@ -582,6 +583,8 @@ def gather_subject_info():
     pulse_frequency = input("frequency?") #these may be found on the stimulator and are not usually iterated on (using lit values)
     return participant_number,now, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency
 
+def rotate_list(l, n):
+    return l[-n:] + l[:-n]
 # example: command_str = "C0I100T750G \n"
 # _____________________________________________________
 # _____________________### MAIN ###____________________
@@ -593,10 +596,10 @@ if __name__ == '__main__':
     load_sounds()
 
     #### read and write to arduino ###
-    ems_serial, contact_serial, = set_up_serials(ems_constants.port_ems, ems_constants.port_serial)
+    ems_serial, contact_serial, = set_up_serials(ems_constants.port_ems, ems_constants.port_contact)
 
     ### testing double stroke ###
-    test_double_stroke(ems_serial)
+    wrapper_test_double_stroke(ems_serial)
 
     ## zero ##
     sleep_len_ms = ems_constants.sleep_len * 1000 
@@ -621,15 +624,20 @@ if __name__ == '__main__':
     bold = workbook.add_format({'bold': True})
 
     # play rhythm and conduct test
+    shuffled_bpm_list = ems_constants.bpms
+    
     for rhythm_index in range(len(ems_constants.rhythm_strings)): # for each of the different rhythms
-        for bpm_index in range(len(ems_constants.bpms)): # at each bpm MUST COUNTERBALANCE THIS SOMEHOW
+        rotated_bpm_list = rotate_list(shuffled_bpm_list, rhythm_index)
+        for bpm_index in range(len(rotated_bpm_list)): # at each bpm MUST COUNTERBALANCE THIS SOMEHOW (by rotating list of bpms for each rhythm)
+            if ems_constants.verbose_mode:
+                print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_index]}, bpm: {rotated_bpm_list[bpm_index]}")
             rhythm_substr = ems_constants.rhythm_strings[rhythm_index]
             
             reading_list, contact_x_values, audio_onset_times, stim_onset_times = play_rhythm(ems_serial, \
-                contact_serial, ems_constants.actual_stim_length, ems_constants.count_in_substr, rhythm_substr, ems_constants.repeats, ems_constants.bpms[bpm_index], \
+                contact_serial, ems_constants.actual_stim_length, ems_constants.count_in_substr, rhythm_substr, ems_constants.repeats, rotated_bpm_list[bpm_index], \
                 ems_constants.metronome_intro_flag, ems_constants.audio_pre_display_flag, ems_constants.audio_repeats,  \
                 ems_constants.post_ems_test_flag, ems_constants.post_ems_repeats, \
-                ems_constants.samp_period_ms, MEASURED_DELAY, ) # gives contact trace, audio onset, stim onset.
+                ems_constants.no_audio_repeats, ems_constants.samp_period_ms, MEASURED_DELAY) # gives contact trace, audio onset, stim onset.
 
             reading_list = np.array(reading_list) # raw recorded touch values
 
@@ -643,7 +651,7 @@ if __name__ == '__main__':
 
             legend_labels = ["contact trace", "stim trace", "audio trace"]
             input_title = f"{ems_constants.rhythm_strings_names[rhythm_index]}: {ems_constants.rhythm_strings[rhythm_index]}," + \
-                f"bpm: {ems_constants.bpms[bpm_index]}"
+                f"bpm: {rotated_bpm_list[bpm_index]}"
 
             plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace,  \
                 x_vec, ems_constants.samp_period_ms, legend_labels, input_title)
@@ -654,16 +662,16 @@ if __name__ == '__main__':
 
             label_header = ["pp number", "test time", "subject arm", "electrode config", "rhythm pattern", \
                 "bpm", "max_stim_intensity", "pulse width (microsecs)", "frequency (Hz)", "measured delay mean",  \
-                    "measured delay std", "pre-ems repeats", "with ems repeats", "post ems repeats", "zeroed mean", "zeroed sd"]
+                    "measured delay std", "pre-ems repeats", "with ems repeats", "post ems repeats", "no audio repeats", "zeroed mean", "zeroed sd"]
             header_values = [participant_number, test_time, subject_arm, electrode_config, rhythm_substr, \
-                ems_constants.bpms[bpm_index], max_ems_stim_intensity, pulse_width, pulse_frequency, MEASURED_DELAY, delay_std, \
-                    ems_constants.audio_repeats, ems_constants.repeats, ems_constants.post_ems_repeats, baseline_mean, baseline_sd]
+                rotated_bpm_list[bpm_index], max_ems_stim_intensity, pulse_width, pulse_frequency, MEASURED_DELAY, delay_std, \
+                    ems_constants.audio_repeats, ems_constants.repeats, ems_constants.post_ems_repeats, ems_constants.no_audio_repeats, baseline_mean, baseline_sd]
             data_header = ["time values (ms)", "contact trace", "stim time onsets", "audio time onsets"]
             
-            worksheet = workbook.add_worksheet(f"{ems_constants.rhythm_strings_names[i]}_bpm{ems_constants.bpms[bpm_index]}") 
+            worksheet = workbook.add_worksheet(f"{ems_constants.rhythm_strings_names[rhythm_index]}_bpm{rotated_bpm_list[bpm_index]}") 
 
             ## write header values ##
-            write_headers(worksheet, label_header, data_header)            
+            write_headers(worksheet, label_header, data_header, rotated_bpm_list)            
 
             arrs_to_write = [contact_x_values, reading_list, stim_onset_times, audio_onset_times]
 
