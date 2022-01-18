@@ -51,8 +51,11 @@ def plot_traces(x_array, trace_list, samp_period, legend_labels, title):
     plt.pause(0.01)
 
 def earth_movers_distance(spike_times_a, spike_times_b, rhythm_trace_a, rhythm_trace_b):
+    
     rhythm_total_spike_times_a = len(spike_times_a)
     rhythm_total_spike_times_b = len(spike_times_b)
+    if rhythm_total_spike_times_a == 0:
+        return -1
     cumulative_a = np.cumsum(np.divide(rhythm_trace_a, rhythm_total_spike_times_a))
     cumulative_b = np.cumsum(np.divide(rhythm_trace_b, rhythm_total_spike_times_b))
     # same thing as np.sum(np.abs(np.subtract(cumulative_a, cumulative_b))),
@@ -159,6 +162,7 @@ for rhythm_index in range(rhythm_set_length):
     list_of_var_lists_by_bpm = []
     list_of_emd_distances_by_bpm = []
     list_of_vp_distances_by_bpm = []
+    emds_normed = []
 
     for bpm_index in range(bpm_set_length):
         rhythm_substr = rhythm_strings[rhythm_index]
@@ -197,7 +201,7 @@ for rhythm_index in range(rhythm_set_length):
 
         title_str = f"raw contact trace, {rhythm_string_names[rhythm_index]}, {bpm}"
         legend_labels = ["contact trace", "stim trace", "audio trace"]
-        plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace, x_vec, samp_period_ms, legend_labels, title_str)
+        # plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace, x_vec, samp_period_ms, legend_labels, title_str)
 
         surpressed_contact_onset_times = process_contact_trace_to_hit_times(reading_list, contact_x_values, ems_constants.baseline_subtractor, ems_constants.surpression_window)
 
@@ -268,17 +272,19 @@ for rhythm_index in range(rhythm_set_length):
                 vp_dist = victor_purp(spike_times_contact, spike_times_audio, loop_begin, loop_end)
                 vp_dist_list.append(vp_dist) 
                 title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}, vic purp: {str(vp_dist)}"
-                plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], samp_period_ms, ["contact", "audio"], title)
-            
-            
+                # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], samp_period_ms, ["contact", "audio"], title)
+
+        dist_array = np.array(distances_list)
+        dist_array[dist_array == -1] = max(dist_array)
     
         list_of_vp_distances_by_bpm.append(vp_dist_list)
-        list_of_emd_distances_by_bpm.append(distances_list)
+        list_of_emd_distances_by_bpm.append(dist_array)
         fig, ax = plt.subplots()
         label_list = ["EMD", "VPD"]
         # normalize EMD
         distances_array = np.array(distances_list)
         distances_array = np.divide(distances_array, np.max(distances_array))
+        emds_normed.append(distances_array)
         ax.plot(np.arange(len(distances_array)), distances_array)
         vp_array = np.array(vp_dist_list)
         vp_array = np.divide(vp_array, np.max(vp_array))
@@ -315,6 +321,20 @@ for rhythm_index in range(rhythm_set_length):
             var_list = [ground_truth_intervals, user_intervals, user_error]
             var_lists.append(var_list) # now has each WK relevant variable for each phase
         list_of_WK_var_lists_by_bpm.append(var_lists)
+
+    mean_distances = np.mean(np.vstack(emds_normed), 0)
+    sd_distances = np.std(np.vstack(emds_normed), 0)
+    fig, ax = plt.subplots() # change this according to num phase?
+    legend_labels = ["earth mover's distances mean", "std+", "std-"]
+    ax.plot(np.arange(len(mean_distances)), mean_distances,'b')
+    ax.plot(np.arange(len(mean_distances)), mean_distances+sd_distances, 'r')
+    ax.plot(np.arange(len(mean_distances)), mean_distances-sd_distances, 'r')
+    ax.set_title(f"mean normalized earth mover's distance across bpms for each phase, {rhythm_string_names[rhythm_index]}")
+    ax.legend(legend_labels)
+    plt.ion()
+    plt.show()
+    plt.draw()
+    plt.pause(0.01)
 
     print("done")
 
@@ -364,3 +384,5 @@ for rhythm_index in range(rhythm_set_length):
     plt.show()
     plt.draw()
     plt.pause(0.01)
+
+print("done")

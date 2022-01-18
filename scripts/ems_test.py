@@ -493,7 +493,7 @@ def wrapper_test_double_stroke(ems_serial):
     if out == 'y':
         contin = True
         while contin:
-            test_double_stroke(ems_serial, ems_constants.actual_stim_length, ems_constants.bpm, ems_constants.double_stroke_rhythm)
+            test_double_stroke(ems_serial, ems_constants.actual_stim_length, max(ems_constants.bpms), ems_constants.double_stroke_rhythm)
             out = input("adjust? a / continue? c")
             if out == 'c':
                 contin = False
