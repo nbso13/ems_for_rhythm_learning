@@ -40,7 +40,7 @@ arr = np.empty((len(intensities), len(lengths)))
 arr[:] = np.NaN
 data_arr = [arr, np.copy(arr), np.copy(arr)]
 
-wb = load_workbook('2021_11_19_17_48_26_pp2.xlsx')
+wb = load_workbook("data/2021_11_19_17_48_26_pp2.xlsx")
 
 name_str = ["Pain level", "Actuation level", "Actuation speed"]
 

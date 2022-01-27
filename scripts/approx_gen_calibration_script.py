@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import datetime
 import serial
 import time
-import openEMSstim
+
 
 LENGTH_BEGIN = 165
 LENGTH_END = 270
@@ -80,7 +80,7 @@ input("For your reference: this is strongest and longest stim: (enter to play it
 keep_going = True
 while keep_going:
     play_rhythm(bluetooth, lengths[-1], rhythm_substr, repeats, bpm, intensities[-1]) # revisit this with Lewis, bring back to group to discuss re procedure
-    result = input("IF: 'I can go higher. I've upped the stim max on stimulator. Let's go again.' type y. IF: 'I can go no further!! It hurts a lot.' type n.")
+    result = input("IF: 'I can go higher. I've upped the stim max on stimulator. Let's go again.' type y. IF: 'I can go no further!! This hurts.' type n.")
     if result == "n":
         keep_going = False
 

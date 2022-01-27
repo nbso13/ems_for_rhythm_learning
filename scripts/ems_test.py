@@ -9,6 +9,7 @@ import xlsxwriter
 import ems_constants
 import serial
 import time
+import keyboard
 
 # current best settings: 155 ms. 10 intensity. bpm 110. never double up strokes direct. You can triple stroke indirect tho.
 
@@ -106,7 +107,7 @@ def run_rhythm_ems(rhythm_display_flag, ems_serial, time_naught, stim_onset_time
     if metronome_intro_flag:
         for j in range(len(count_in_substr)):  # go through each eighthnote in the pattern
             if (count_in_substr[j] == '1'): # this is a note
-                command_bytes = "xC1I100T" +str(actual_stim_length) + "G \n"
+                command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
                 byt_com = bytes(command_bytes, encoding='utf8')
                 stim_onset_times.append(time.time() - time_naught)
                 ems_serial.write(byt_com)
@@ -132,7 +133,7 @@ def run_rhythm_ems(rhythm_display_flag, ems_serial, time_naught, stim_onset_time
         for i in range(repeats): # present the rhythm with appropriate number of repeats
             for j in range(len(rhythm_substr)):  # go through each eighthnote in the pattern
                 if (rhythm_substr[j] == '1'): # this is a note
-                    command_bytes = "xC1I100T" +str(actual_stim_length) + "G \n"
+                    command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
                     byt_com = bytes(command_bytes, encoding='utf8')
                     stim_onset_times.append(time.time() - time_naught)
                     ems_serial.write(byt_com)
@@ -289,6 +290,24 @@ def read_contact_trace(ser,  len_rhythm_presentation_ms, samp_period_ms, reading
     # print("mean samp period and stdv: " + str(mean_contact_samp_period) + " +/- " + str(stdv_contact_samp_period))
     return readings_list, x_values_list
 
+
+def read_keyboard_trace(len_rhythm_presentation_ms, samp_period_ms, readings_list, x_values_list, time_naught_contact_trace):
+    # reads from contact detection serial object every sample period. Saves results to a list
+    # time.sleep(1)
+    # print("thread time since start " + str(time.time()- time_naught))
+    check_repeats = int(np.floor((len_rhythm_presentation_ms/samp_period_ms)))
+    print("read thread begun")
+    while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms:
+         if keyboard.read_key() == "p":
+            time_measured = time.time()
+            # if int(out[:-2]) > 5:
+            #     print(int(out[:-2]))
+            readings_list.append(400)
+            x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
+    print("done reading trace")
+    # print("mean samp period and stdv: " + str(mean_contact_samp_period) + " +/- " + str(stdv_contact_samp_period))
+    return readings_list, x_values_list
+
 def rhythm_string_to_stim_trace_and_audio_trace(count_in_substr, rhythm_substr,  actual_stim_length, bpm, repeats,  \
     samp_period, delay, audio_repeats, post_ems_repeats):
     # takes in the count-in string, the actual rhythm string, the length of stimulation in ms, beats per minute,
@@ -411,17 +430,21 @@ def zero_sensor(contact_ser, sleep_len_ms, samp_period_ms):
 
 def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_len, samp_period_ms, sd_more_than_mult, baseline_subtractor, baseline_mean, baseline_sd):
     # uses a set of trials and random stims and determines the average delay from EMS command to contact registration.
-    
-
     times_stimmed = []
     reading_results = []
     x_value_results = []
-    rand_values = np.divide(np.random.rand(trial_num), 2) #between 0 and 0.5 second random delay
+    rand_values =  np.divide(np.random.rand(trial_num), 2) #between 0 and 0.5 second random delay np.ones((trial_num)) * 0.5
     len_pres = 3000 + (trial_num * sleep_len + np.sum(rand_values)) * 1000 # ms
     time_naught_delay = time.time()
     print("time naught delay: " + str(time_naught_delay))
-    read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
-        samp_period_ms, reading_results, x_value_results, time_naught_delay))
+
+    if ems_constants.delay_mode == 'key':
+        read_thread = threading.Thread(target=read_keyboard_trace, args= (len_pres,  \
+            samp_period_ms, reading_results, x_value_results, time_naught_delay))
+    elif ems_constants.delay_mode == 'contact':
+        read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
+            samp_period_ms, reading_results, x_value_results, time_naught_delay))
+
     time_naught_main = time.time()
     print("time naught main thread: " + str(time_naught_main))
     read_thread.start()
@@ -434,7 +457,7 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
     print("calibrating delay in 1")
     time.sleep(1)
     for i in range(trial_num):
-        command_bytes = "xC1I100T" + str(actual_stim_length) + "G \n" # metronome intro
+        command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
         byt_com = bytes(command_bytes, encoding='utf8')
         ems_serial.write(byt_com)
         times_stimmed.append(time.time()-time_naught_main)
@@ -608,7 +631,7 @@ def rotate_list(l, n):
 if __name__ == '__main__':
     tic = time.time()
 
-    ## load sound
+    ## load soundy
     load_sounds()
 
     #### read and write to arduino ###
@@ -638,6 +661,8 @@ if __name__ == '__main__':
     ### open workbook, define worksheets ###
     workbook = xlsxwriter.Workbook(f"{test_time}_pp{participant_number}.xlsx")
     bold = workbook.add_format({'bold': True})
+
+    ### PRACTICE MIMICKING RHYTHMS
 
     # play rhythm and conduct test
     shuffled_bpm_list = ems_constants.bpms

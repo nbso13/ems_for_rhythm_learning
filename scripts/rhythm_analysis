@@ -1,0 +1,82 @@
+from optparse import Values
+from tempfile import TemporaryDirectory
+from turtle import end_fill
+from numpy.core.fromnumeric import size
+import ems_constants
+import numpy as np
+import matplotlib.pyplot as plt
+from openpyxl import Workbook
+from openpyxl import load_workbook
+import glob
+import quantities as pq
+from elephant.spike_train_dissimilarity import victor_purpura_distance
+from neo import SpikeTrain
+import scipy
+
+
+
+def rhythm_cross_entropy(probabilities):
+    summed = 0
+    for prob in probabilities:
+        summed += -np.log(prob)
+    normed = summed/len(probabilities)
+    return normed
+
+def fine_grained_met(rhyth_string):
+    probabilities = []
+    for ch_index in range(len(rhyth_string):
+        beat_position = int(ch_index) % 8
+        position_probabilty = ems_constants.metrical_position_probabilities[beat_position]
+        if int(rhyth_string[ch_index]):
+            probabilities.append(position_probability)
+        else:
+            probabilities.append(-position_probability)
+
+    normed_cross_ent = rhythm_cross_entropy(probabilities)
+    return(normed_cross_ent)
+
+def classify_anchor_status(note_level, rhythm_string, ch_index)
+    distance_to_next_level = ems_constants.distances_to_next_level[note_level]
+    preceding = rhythm_string[ch_index-distance_to_next_level]
+    if len(rhythm_string)-1 > ch_index + distance_to_next_level:
+        ind = 0
+    else:
+        ind = ch_index + distance_to_next_level
+    next = rhythm_string[ind]
+    if int(next) and int(preceding):
+        probability = ems_constants.anchor_stat['both_anchored'][note_level]
+    elif int(next) and not(int(preceding)):
+        probability = ems_constants.anchor_stat['post_anchored'][note_level]
+    elif not(int(next)) and not(int(preceding)):
+        probability = ems_constants.anchor_stat['not_anchored'][note_level]
+    elif not(int(next)) and int(preceding):
+        probability = ems_constants.anchor_stat['pre_anchored'][note_level]
+    return probability
+
+def hierarchical_model(rhyth_string):
+    probabilities = []
+    for ch_index in range(len(rhyth_string):
+        ems_constants.level_zero_probability
+        beat_position = ch_index % 8
+        if beat_position == 0:
+            note_level = 0 # whole note
+        elif beat_position % 4 == 0: 
+            note_level = 1 # half note
+        elif beat_position % 2 == 0: 
+            note_level = 2 # quarter note
+        else:
+            note_level = 3 # eighthnote
+
+        note_there_probability = classify_anchor_status(note_level, rhyth_string, ch_index)
+
+        if int(rhyth_string[ch_index]):
+            probability = note_there_probability
+        else:
+            probability = 1-note_there_probability
+
+        probabilities.append(probability)
+
+    normed_cross_ent = rhythm_cross_entropy(probabilities)
+    return(normed_cross_ent)
+        
+
