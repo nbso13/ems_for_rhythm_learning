@@ -1,4 +1,7 @@
+from logging import warning
 import numpy as np
+import warnings
+import pickle
 import math
 import time
 import threading
@@ -34,7 +37,7 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     milliseconds_per_eighthnote = 30000/bpm
 
     ## start reading thread ##
-    len_pres = 3000 + milliseconds_per_eighthnote*(len(count_in_substr) + (audio_repeats+repeats+post_ems_repeats+no_audio_repeats) *  \
+    len_pres = milliseconds_per_eighthnote*(len(count_in_substr) + (audio_repeats+repeats+post_ems_repeats+no_audio_repeats) *  \
         len(rhythm_substr)) + delay_val # length of rhythm presentation
     
     audio_onset_times = [] # when list of times audio began to play
@@ -53,19 +56,19 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     #WHY SHOULD THIS BE DIFFERENT THAN CONTACT THREAD?
 
     ## creating EMS and audio and metronome threads ##
-    ems_thread = threading.Thread(target=run_rhythm_ems, args= (rhythm_display_flag, ems_serial, time_naught_main,  \
-        stim_onset_times, repeats, rhythm_substr, actual_stim_length, milliseconds_per_eighthnote, \
-             metronome_intro_flag, count_in_substr, audio_pre_display_flag, audio_repeats)) 
-    audio_thread = threading.Thread(target=run_rhythm_audio, args= (rhythm_display_flag, post_ems_test_flag, audio_onset_times, time_naught_main, repeats, rhythm_substr, \
-    milliseconds_per_eighthnote, metronome_intro_flag, count_in_substr, audio_pre_display_flag, no_audio_flag, audio_repeats, post_ems_repeats, no_audio_repeats))
-    metronome_thread = threading.Thread(target=metronome_tone, args= (milliseconds_per_eighthnote, total_eighthnotes))
-
     print("rhythm in 3")
     time.sleep(1)
     print("rhythm  in 2")
     time.sleep(1)
     print("rhythm  in 1")
     time.sleep(1)
+
+    ems_thread = threading.Thread(target=run_rhythm_ems, args= (rhythm_display_flag, ems_serial, time_naught_main,  \
+        stim_onset_times, repeats, rhythm_substr, actual_stim_length, milliseconds_per_eighthnote, \
+             metronome_intro_flag, count_in_substr, audio_pre_display_flag, audio_repeats)) 
+    audio_thread = threading.Thread(target=run_rhythm_audio, args= (rhythm_display_flag, post_ems_test_flag, audio_onset_times, time_naught_main, repeats, rhythm_substr, \
+    milliseconds_per_eighthnote, metronome_intro_flag, count_in_substr, audio_pre_display_flag, no_audio_flag, audio_repeats, post_ems_repeats, no_audio_repeats))
+    metronome_thread = threading.Thread(target=metronome_tone, args= (milliseconds_per_eighthnote, total_eighthnotes))
     ems_thread.start()
 
     time.sleep(delay_val/1000) # implements delay between EMS and audio timelines.
@@ -291,6 +294,10 @@ def read_contact_trace(ser,  len_rhythm_presentation_ms, samp_period_ms, reading
     return readings_list, x_values_list
 
 
+def end_to_end_latency():
+    warnings.warn("END TO END LATENCY NOT IMPLEMENTED")
+    return -1
+
 def read_keyboard_trace(len_rhythm_presentation_ms, samp_period_ms, readings_list, x_values_list, time_naught_contact_trace):
     # reads from contact detection serial object every sample period. Saves results to a list
     # time.sleep(1)
@@ -434,10 +441,17 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
     reading_results = []
     x_value_results = []
     rand_values =  np.divide(np.random.rand(trial_num), 2) #between 0 and 0.5 second random delay np.ones((trial_num)) * 0.5
-    len_pres = 3000 + (trial_num * sleep_len + np.sum(rand_values)) * 1000 # ms
+    len_pres = (trial_num * sleep_len + np.sum(rand_values)) * 1000 # ms
+
+    print("calibrating delay in 3")
+    time.sleep(1)
+    print("calibrating delay in 2")
+    time.sleep(1)
+    print("calibrating delay in 1")
+    time.sleep(1)
+
     time_naught_delay = time.time()
     print("time naught delay: " + str(time_naught_delay))
-
     if ems_constants.delay_mode == 'key':
         read_thread = threading.Thread(target=read_keyboard_trace, args= (len_pres,  \
             samp_period_ms, reading_results, x_value_results, time_naught_delay))
@@ -450,12 +464,6 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
     read_thread.start()
     # time.sleep(1)
     # print("time since start: " + str(time.time() - time_naught_main))
-    print("calibrating delay in 3")
-    time.sleep(1)
-    print("calibrating delay in 2")
-    time.sleep(1)
-    print("calibrating delay in 1")
-    time.sleep(1)
     for i in range(trial_num):
         command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
         byt_com = bytes(command_bytes, encoding='utf8')
@@ -567,19 +575,15 @@ def set_up_serials(port_ems, port_contact):
     
     return ems_serial, contact_serial
 
-def write_headers(worksheet, label_header, header_values, rotated_bpm_list):
-    for i in range(len(label_header)):
-        # first entry to write is the data row number
-        worksheet.write(0, i, label_header[i], bold) # write in header values
-        worksheet.write(1, i, header_values[i], bold)
-
-    for i in range(len(ems_constants.rhythm_strings_names)):
-        worksheet.write(2, i, ems_constants.rhythm_strings_names[i])
-        worksheet.write(3, i, ems_constants.rhythm_strings[i])
-
-    worksheet.write(4, 0, "bpms: ")
-    for i in range(len(rotated_bpm_list)):
-        worksheet.write(4, i+1, rotated_bpm_list[i])
+def write_headers(file_title_pick, file_title_txt, participant_info_dictionary, runtime_parameters):
+    complete_header_dict = {**participant_info_dictionary, **runtime_parameters}
+# SAVE
+    with open(file_title_pick, "wb") as pkl_handle:
+        pickle.dump(complete_header_dict, pkl_handle)
+    # now as txt file too for readability
+    f = open(file_title_txt,"w")
+    f.write( str(complete_header_dict) )
+    f.close()
     return
 
 def measure_delay_loop(ems_serial, contact_serial, baseline_mean, baseline_sd):
@@ -625,17 +629,26 @@ def gather_subject_info():
 def rotate_list(l, n):
     return l[-n:] + l[:-n]
 # example: command_str = "C0I100T750G \n"
+
+
 # _____________________________________________________
 # _____________________### MAIN ###____________________
 
 if __name__ == '__main__':
     tic = time.time()
 
+    # end to end latency
+    input("Measure end-to-end latency! Enter to measure.")
+    end_to_end_late_value = end_to_end_latency()
+    input("End to end latency measurement complete. Fit participant with electrodes and hit enter to continue.")
+
     ## load soundy
     load_sounds()
 
     #### read and write to arduino ###
     ems_serial, contact_serial, = set_up_serials(ems_constants.port_ems, ems_constants.port_contact)
+
+
 
     ### testing double stroke ###
     wrapper_test_double_stroke(ems_serial)
@@ -659,7 +672,7 @@ if __name__ == '__main__':
     participant_number, now, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency = gather_subject_info()
 
     ### open workbook, define worksheets ###
-    workbook = xlsxwriter.Workbook(f"{test_time}_pp{participant_number}.xlsx")
+    workbook = xlsxwriter.Workbook(f"data/{test_time}_pp{participant_number}.xlsx")
     bold = workbook.add_format({'bold': True})
 
     ### PRACTICE MIMICKING RHYTHMS
@@ -669,17 +682,25 @@ if __name__ == '__main__':
 
     # write header worksheet
 
-    label_header = ["pp number", "test time", "subject arm", "electrode config", \
-                "max_stim_intensity", "pulse width (microsecs)", "frequency (Hz)", "measured delay mean",  \
-                    "measured delay std", "pre-ems repeats", "with ems repeats", "post ems repeats", \
-                        "no audio repeats", "zeroed mean", "zeroed sd", "sampling period", "actual stimulation length milliseconds"]
-    header_values = [participant_number, test_time, subject_arm, electrode_config, \
-        max_ems_stim_intensity, pulse_width, pulse_frequency, MEASURED_DELAY, \
-            delay_std, ems_constants.audio_repeats, ems_constants.repeats, ems_constants.post_ems_repeats, \
-                ems_constants.no_audio_repeats, baseline_mean, baseline_sd, ems_constants.samp_period_ms, ems_constants.actual_stim_length]
+    participant_info_dictionary = {
 
-    worksheet = workbook.add_worksheet("header") 
-    write_headers(worksheet, label_header, header_values, shuffled_bpm_list)
+        "pp number" : participant_number, 
+        "test time" : test_time, 
+        "subject arm" : subject_arm, 
+        "electrode config" : electrode_config,
+        "max_stim_intensity" : max_ems_stim_intensity, 
+        "pulse width (microsecs)": pulse_width, 
+        "frequency (Hz)" : pulse_frequency, 
+        "measured delay mean" : MEASURED_DELAY,
+        "measured delay std" : delay_std,  
+        "zeroed mean" : baseline_mean, 
+        "zeroed sd" : baseline_sd, 
+        "end_to_end_latency" : end_to_end_late_value
+    }
+
+    label_header = []
+
+    write_headers(f"data/{test_time}_pp{participant_number}_header_info.pkl", f"data/{test_time}_pp{participant_number}_header_info.txt", participant_info_dictionary, ems_constants.runtime_parameters)
 
     for rhythm_index in range(len(ems_constants.rhythm_strings)): # for each of the different rhythms
         rotated_bpm_list = rotate_list(shuffled_bpm_list, rhythm_index)

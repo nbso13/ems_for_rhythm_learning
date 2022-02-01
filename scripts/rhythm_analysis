@@ -14,69 +14,109 @@ from neo import SpikeTrain
 import scipy
 
 
+def bar_plot_scores(scores, title):
+    fig, ax = plt.subplots()
+    ax.set_xticks(np.arange(len(scores)))
+    ax.set_xticklabels(ems_constants.rhythm_strings_names)
+    ax.set_title(title)
+    ax.set_ylabel("cross ent scores")
+    plt.xticks(rotation=45, ha="right")
+    ax.bar(np.arange(len(scores)), scores, align='center')
+    plt.tight_layout()
+    
+
 
 def rhythm_cross_entropy(probabilities):
     summed = 0
     for prob in probabilities:
         summed += -np.log(prob)
-    normed = summed/len(probabilities)
+    normed = summed # /len(probabilities)
     return normed
 
 def fine_grained_met(rhyth_string):
     probabilities = []
-    for ch_index in range(len(rhyth_string):
+    for ch_index in range(len(rhyth_string)):
         beat_position = int(ch_index) % 8
-        position_probabilty = ems_constants.metrical_position_probabilities[beat_position]
+        position_probability = ems_constants.metrical_position_probabilities[beat_position]
         if int(rhyth_string[ch_index]):
             probabilities.append(position_probability)
         else:
-            probabilities.append(-position_probability)
+            probabilities.append(1-position_probability)
 
     normed_cross_ent = rhythm_cross_entropy(probabilities)
     return(normed_cross_ent)
 
-def classify_anchor_status(note_level, rhythm_string, ch_index)
-    distance_to_next_level = ems_constants.distances_to_next_level[note_level]
-    preceding = rhythm_string[ch_index-distance_to_next_level]
-    if len(rhythm_string)-1 > ch_index + distance_to_next_level:
-        ind = 0
+def classify_anchor_status(note_level, rhythm_string, ch_index):
+    distance_to_next_level = ems_constants.distances_to_next_level[note_level] 
+    # get the distance to the next level - i.e., for halfnote, index 1, it would be 4 beats away.
+    preceding = rhythm_string[ch_index-distance_to_next_level] # get the preceding next level note
+    if len(rhythm_string)-1 < ch_index + distance_to_next_level: # if the distance to the next level and where we are is greater than str length
+        ind = 0 # next level is always the first note of the string (cause of repeat)
     else:
-        ind = ch_index + distance_to_next_level
-    next = rhythm_string[ind]
-    if int(next) and int(preceding):
+        ind = ch_index + distance_to_next_level # otherwise we can add like this
+    next_val = rhythm_string[ind]
+    if int(next_val) and int(preceding): # if both before and after are notes then both 
         probability = ems_constants.anchor_stat['both_anchored'][note_level]
-    elif int(next) and not(int(preceding)):
+    elif int(next_val) and not(int(preceding)): # if next is but not before, post
         probability = ems_constants.anchor_stat['post_anchored'][note_level]
-    elif not(int(next)) and not(int(preceding)):
+    elif not(int(next_val)) and not(int(preceding)): # if both not notes then not
         probability = ems_constants.anchor_stat['not_anchored'][note_level]
-    elif not(int(next)) and int(preceding):
+    elif not(int(next_val)) and int(preceding): # if after is no note but before is, pre 
         probability = ems_constants.anchor_stat['pre_anchored'][note_level]
+    else:
+        raise ValueError('Anchor status could not be determined')
     return probability
 
 def hierarchical_model(rhyth_string):
     probabilities = []
-    for ch_index in range(len(rhyth_string):
-        ems_constants.level_zero_probability
-        beat_position = ch_index % 8
-        if beat_position == 0:
+    for ch_index in range(len(rhyth_string)): # for each location in rhythm string
+        beat_position = ch_index % 8 # get beat position
+        if beat_position == 0: # if this is the first beat position of the measure
             note_level = 0 # whole note
-        elif beat_position % 4 == 0: 
+        elif beat_position % 4 == 0: # else if this is the middle of the measure
             note_level = 1 # half note
-        elif beat_position % 2 == 0: 
+        elif beat_position % 2 == 0: # else if this is a quarter note place
             note_level = 2 # quarter note
+        else: #other wise,
+            note_level = 3 # eighthnote 
+
+
+        if note_level == 0: # if we had a whole note don't look at the anchor status
+            note_there_probability = ems_constants.level_zero_probability
+        else: # otherwise
+            note_there_probability = classify_anchor_status(note_level, rhyth_string, ch_index) 
+            # given note level and context, give probability that there would be a note there
+
+        if int(rhyth_string[ch_index]):  # if there is a note there
+            probability = note_there_probability # then that's the probability
         else:
-            note_level = 3 # eighthnote
+            probability = 1-note_there_probability # if there's no note there then flip probability
 
-        note_there_probability = classify_anchor_status(note_level, rhyth_string, ch_index)
+        probabilities.append(probability) # add to probabilities
 
-        if int(rhyth_string[ch_index]):
-            probability = note_there_probability
-        else:
-            probability = 1-note_there_probability
-
-        probabilities.append(probability)
-
-    normed_cross_ent = rhythm_cross_entropy(probabilities)
+    normed_cross_ent = rhythm_cross_entropy(probabilities) # calculate 
     return(normed_cross_ent)
         
 
+if __name__ == '__main__':
+    hiers = []
+    pos = []
+    leng = []
+
+    for rhythm_ind in range(len(ems_constants.rhythm_strings)):
+        rhythm = ems_constants.rhythm_strings[rhythm_ind]
+        normed_cross_ent_hier = hierarchical_model(rhythm)
+        hiers.append(normed_cross_ent_hier)
+        normed_cross_ent_position = fine_grained_met(rhythm)
+        pos.append(normed_cross_ent_position)
+        leng.append(len(rhythm))
+        print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
+    
+    
+    
+    bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
+    bar_plot_scores(leng, "Rhythm Length")
+    bar_plot_scores(pos, "Position model cross entropy scores by rhythm")
+    plt.tight_layout()
+    plt.show()
+    x = 0
