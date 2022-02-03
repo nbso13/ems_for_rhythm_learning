@@ -39,23 +39,16 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     ## start reading thread ##
     len_pres = milliseconds_per_eighthnote*(len(count_in_substr) + (audio_repeats+repeats+post_ems_repeats+no_audio_repeats) *  \
         len(rhythm_substr)) + delay_val # length of rhythm presentation
-    
-    audio_onset_times = [] # when list of times audio began to play
-    stim_onset_times = []  # list of times when stim command was sent
-    time_naught_thread = time.time() # beginning of time for contact tracing thread. 
-    # SHOULD THIS BE DIFFERENT FROM OTHER BEGINNING TIME COUNT?
-    read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
-        samp_period_ms, reading_results, x_value_results, time_naught_thread)) # creating read thread
-    read_thread.start() 
 
     rhythm_display_flag = 1 # SHOULD display EMS and audio together after audio presentation.
     post_ems_test_flag = 1
     # total eighthnotes in count in, audio display, and rhythm display (EMS+audio)
     total_eighthnotes = len(count_in_substr) + (repeats+audio_repeats+post_ems_repeats+no_audio_repeats)*len(rhythm_substr) 
-    time_naught_main = time.time() # beginning time for EMS and audio threads. 
-    #WHY SHOULD THIS BE DIFFERENT THAN CONTACT THREAD?
+    
+    audio_onset_times = [] # when list of times audio began to play
+    stim_onset_times = []  # list of times when stim command was sent
 
-    ## creating EMS and audio and metronome threads ##
+    # count off!
     print("rhythm in 3")
     time.sleep(1)
     print("rhythm  in 2")
@@ -63,10 +56,20 @@ def play_rhythm(ems_serial, contact_ser, actual_stim_length, count_in_substr, rh
     print("rhythm  in 1")
     time.sleep(1)
 
-    ems_thread = threading.Thread(target=run_rhythm_ems, args= (rhythm_display_flag, ems_serial, time_naught_main,  \
+    time_naught_thread = time.time() # beginning of time for contact tracing thread. 
+    # SHOULD THIS BE DIFFERENT FROM OTHER BEGINNING TIME COUNT?
+    read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
+        samp_period_ms, reading_results, x_value_results, time_naught_thread)) # creating read thread
+    read_thread.start() 
+
+    # time_naught_main = time.time() # beginning time for EMS and audio threads. 
+    #WHY SHOULD THIS BE DIFFERENT THAN CONTACT THREAD?
+    ## creating EMS and audio and metronome threads ##
+
+    ems_thread = threading.Thread(target=run_rhythm_ems, args= (rhythm_display_flag, ems_serial, time_naught_thread,  \
         stim_onset_times, repeats, rhythm_substr, actual_stim_length, milliseconds_per_eighthnote, \
              metronome_intro_flag, count_in_substr, audio_pre_display_flag, audio_repeats)) 
-    audio_thread = threading.Thread(target=run_rhythm_audio, args= (rhythm_display_flag, post_ems_test_flag, audio_onset_times, time_naught_main, repeats, rhythm_substr, \
+    audio_thread = threading.Thread(target=run_rhythm_audio, args= (rhythm_display_flag, post_ems_test_flag, audio_onset_times, time_naught_thread, repeats, rhythm_substr, \
     milliseconds_per_eighthnote, metronome_intro_flag, count_in_substr, audio_pre_display_flag, no_audio_flag, audio_repeats, post_ems_repeats, no_audio_repeats))
     metronome_thread = threading.Thread(target=metronome_tone, args= (milliseconds_per_eighthnote, total_eighthnotes))
     ems_thread.start()
@@ -110,7 +113,7 @@ def run_rhythm_ems(rhythm_display_flag, ems_serial, time_naught, stim_onset_time
     if metronome_intro_flag:
         for j in range(len(count_in_substr)):  # go through each eighthnote in the pattern
             if (count_in_substr[j] == '1'): # this is a note
-                command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
+                command_bytes = f'xC{str(ems_constants.channel)}I100T{str(actual_stim_length)}G \n' # metronome intro
                 byt_com = bytes(command_bytes, encoding='utf8')
                 stim_onset_times.append(time.time() - time_naught)
                 ems_serial.write(byt_com)
@@ -281,7 +284,7 @@ def read_contact_trace(ser,  len_rhythm_presentation_ms, samp_period_ms, reading
     # print("thread time since start " + str(time.time()- time_naught))
     check_repeats = int(np.floor((len_rhythm_presentation_ms/samp_period_ms)))
     print("read thread begun")
-    while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms:
+    while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms + ems_constants.read_buffer_time_val:
         if ser.in_waiting:
             out = ser.readline().decode('utf-8')
             time_measured = time.time()
@@ -292,7 +295,6 @@ def read_contact_trace(ser,  len_rhythm_presentation_ms, samp_period_ms, reading
     print("done reading trace")
     # print("mean samp period and stdv: " + str(mean_contact_samp_period) + " +/- " + str(stdv_contact_samp_period))
     return readings_list, x_values_list
-
 
 def end_to_end_latency():
     warnings.warn("END TO END LATENCY NOT IMPLEMENTED")
@@ -459,8 +461,8 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
         read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
             samp_period_ms, reading_results, x_value_results, time_naught_delay))
 
-    time_naught_main = time.time()
-    print("time naught main thread: " + str(time_naught_main))
+    # time_naught_main = time.time()
+    print("time naught main thread: " + str(time_naught_delay))
     read_thread.start()
     # time.sleep(1)
     # print("time since start: " + str(time.time() - time_naught_main))
@@ -468,7 +470,7 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
         command_bytes = f'xC{str(ems_constants.channel)}I100T{str(ems_constants.actual_stim_length)}G \n' # metronome intro
         byt_com = bytes(command_bytes, encoding='utf8')
         ems_serial.write(byt_com)
-        times_stimmed.append(time.time()-time_naught_main)
+        times_stimmed.append(time.time()-time_naught_delay)
         print("STIM " + str(i))
         time.sleep(sleep_len)
         time.sleep(rand_values[i])
@@ -698,10 +700,6 @@ if __name__ == '__main__':
         "end_to_end_latency" : end_to_end_late_value
     }
 
-    label_header = []
-
-    write_headers(f"data/{test_time}_pp{participant_number}_header_info.pkl", f"data/{test_time}_pp{participant_number}_header_info.txt", participant_info_dictionary, ems_constants.runtime_parameters)
-
     for rhythm_index in range(len(ems_constants.rhythm_strings)): # for each of the different rhythms
         rotated_bpm_list = rotate_list(shuffled_bpm_list, rhythm_index)
         for bpm_index in range(len(rotated_bpm_list)): # at each bpm MUST COUNTERBALANCE THIS SOMEHOW (by rotating list of bpms for each rhythm)
@@ -756,6 +754,7 @@ if __name__ == '__main__':
     toc = time.time()
     diff = toc-tic
     print("Time elapsed: " + str(diff))
+    write_headers(f"data/{test_time}_pp{participant_number}_header_info.pkl", f"data/{test_time}_pp{participant_number}_header_info.txt", participant_info_dictionary, ems_constants.runtime_parameters)
     workbook.close()
 
     contact_serial.close()

@@ -17,20 +17,20 @@ count_in_substr = '1000100010001000'
 nothing_str = '00000000'
 all_str = '11111111'
 almost_all = '11111011'
-rhythm_strings = [to_the_beat_substr]
+rhythm_strings = [ to_the_beat_substr, clave_substr, flip_the_beat] # 
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["to_the_beat_substr"]
+rhythm_strings_names = ["to_the_beat_substr", "clave_substr", "flip_the_beat"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
-bpms_ordered = [85, 100, 115, 130, 145, 160, 175] #bpms to try
-bpms = [175] # shuffled 100, 160, 130, 85, 115, 145, 
+bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
+bpms = [100, 160, 130, 115, 145, 175] # shuffled  
 repeats = 1 # ems and audio period repeats
-audio_repeats = 1
+audio_repeats = 4
 post_ems_repeats = 1 # how many post ems repeats
-no_audio_repeats = 1
+no_audio_repeats = 4
 audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
@@ -49,15 +49,16 @@ baseline_subtractor = 15 # this is the noise threshold for contact trace BACK TH
 surpression_window = 250 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "101001010010101001010010100"
-interval_tolerance = 40 #ms
+interval_tolerance = 100 #ms
 phase_name_strs = ["pre_ems", "ems_audio", "post_ems", "no_audio"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 port_contact = '/dev/cu.usbmodem11401'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
-verbose_mode = 1
+verbose_mode = 0
 channel = 0
+read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
 
 
 level_zero_probability = 0.891 # Hayden motzart
@@ -70,6 +71,7 @@ anchor_stat = {
     'pre_anchored':[np.nan, 0.525, 0.239, 0.109],
     'not_anchored':[np.nan,  0.5, 0.398, 0.12 ]
 }
+
 
 
 
