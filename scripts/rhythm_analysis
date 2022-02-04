@@ -1,4 +1,5 @@
 from optparse import Values
+import random
 from tempfile import TemporaryDirectory
 from turtle import end_fill
 from numpy.core.fromnumeric import size
@@ -28,25 +29,27 @@ def bar_plot_scores(scores, title):
 
 def rhythm_cross_entropy(probabilities):
     summed = 0
-    for prob in probabilities:
+    for prob in probabilities: # for each probability sum negative log
         summed += -np.log(prob)
     normed = summed # /len(probabilities)
     return normed
 
 def fine_grained_met(rhyth_string):
-    probabilities = []
-    for ch_index in range(len(rhyth_string)):
-        beat_position = int(ch_index) % 8
-        position_probability = ems_constants.metrical_position_probabilities[beat_position]
-        if int(rhyth_string[ch_index]):
+    probabilities = [] 
+    for ch_index in range(len(rhyth_string)): # for each entry in string
+        beat_position = int(ch_index) % 8 # get beat position
+        position_probability = ems_constants.metrical_position_probabilities[beat_position] # get metrical probability by location
+        if int(rhyth_string[ch_index]): # add proibability or flip if 0
             probabilities.append(position_probability)
         else:
             probabilities.append(1-position_probability)
 
     normed_cross_ent = rhythm_cross_entropy(probabilities)
+
     return(normed_cross_ent)
 
 def classify_anchor_status(note_level, rhythm_string, ch_index):
+    # determines anchor status and fetches probability associated with that status for that level of note.
     distance_to_next_level = ems_constants.distances_to_next_level[note_level] 
     # get the distance to the next level - i.e., for halfnote, index 1, it would be 4 beats away.
     preceding = rhythm_string[ch_index-distance_to_next_level] # get the preceding next level note
@@ -68,6 +71,7 @@ def classify_anchor_status(note_level, rhythm_string, ch_index):
     return probability
 
 def hierarchical_model(rhyth_string):
+    # for a given string, for each entry, determines note level, anchor status, then probability
     probabilities = []
     for ch_index in range(len(rhyth_string)): # for each location in rhythm string
         beat_position = ch_index % 8 # get beat position
@@ -98,25 +102,92 @@ def hierarchical_model(rhyth_string):
     return(normed_cross_ent)
         
 
-if __name__ == '__main__':
-    hiers = []
-    pos = []
-    leng = []
 
-    for rhythm_ind in range(len(ems_constants.rhythm_strings)):
-        rhythm = ems_constants.rhythm_strings[rhythm_ind]
-        normed_cross_ent_hier = hierarchical_model(rhythm)
-        hiers.append(normed_cross_ent_hier)
-        normed_cross_ent_position = fine_grained_met(rhythm)
-        pos.append(normed_cross_ent_position)
-        leng.append(len(rhythm))
-        print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
+
+def random_rhythm(length, num_rhyths):
+    max_val = 2**length
+    if max_val < num_rhyths:
+        raise ValueError("Asking for more unique rhythms than are possible")
+    rhyth_number_out = random.sample(range(0, max_val), num_rhyths)
+    bin_strs = []
+    for number in rhyth_number_out:
+        str_bin = bin(number)
+        str_bin = str_bin[2:]
+        if not('11' in str_bin):
+            bin_strs.append(str_bin)
+    return bin_strs
+
+
+def rhythm_generator(length, attempts):
+    bin_list = random_rhythm(length, attempts)
+    scores = []
+    for i in range(len(bin_list)):
+        if len(bin_list[i]) < length:
+            bin_list[i] = '0'*(length-len(bin_list[i])) + bin_list[i]
+        scores.append(round(hierarchical_model(bin_list[i]), 4))
+    return bin_list, scores
+
+    
+def histo_scores(scores):
+    # q25, q75 = np.percentile(gt_intervals, [25, 75])
+    # bin_width = 2 * (q75 - q25) * len(gt_intervals) ** (-1/3)
+    # bins = round((np.max(gt_intervals) - np.min(gt_intervals)) / bin_width)
+    fig, ax = plt.subplots()
+    ax.hist(scores, bins=40)  # density=False would make counts
+    ax.set_ylabel("count")
+    ax.set_xlabel('Interval length, ms')
+    ax.set_title("interval frequency")
+    return
+
+
+def get_closest_n_rhythms(total_binary_list, corresponding_scores, n, target_score, unique_flag):
+    if unique_flag:
+        unique_scores = set(corresponding_scores)
+        unique_score_rhythms = []
+        for i in unique_scores:
+            ind = corresponding_scores.index(i)
+            unique_score_rhythms.append(total_binary_list[ind])
+        total_binary_list = unique_score_rhythms
+        corresponding_scores = unique_scores
+
+
+    distance = [abs(score - target_score) for score in corresponding_scores]
+    sorted_rhythms = [x for _,x in sorted(zip(distance, total_binary_list))]
+    sorted_scores = [x for _,x in sorted(zip(distance, corresponding_scores))]
+    return sorted_rhythms[0:n], sorted_scores[0:n]
+
+    
+if __name__ == '__main__':
+    # hiers = []
+    # pos = []
+    # leng = []
+
+    # for rhythm_ind in range(len(ems_constants.rhythm_strings)):
+    #     rhythm = ems_constants.rhythm_strings[rhythm_ind]
+    #     normed_cross_ent_hier = hierarchical_model(rhythm)
+    #     hiers.append(normed_cross_ent_hier)
+    #     normed_cross_ent_position = fine_grained_met(rhythm)
+    #     pos.append(normed_cross_ent_position)
+    #     leng.append(len(rhythm))
+    #     print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
     
     
     
-    bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
-    bar_plot_scores(leng, "Rhythm Length")
-    bar_plot_scores(pos, "Position model cross entropy scores by rhythm")
-    plt.tight_layout()
-    plt.show()
-    x = 0
+    # bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
+    # bar_plot_scores(leng, "Rhythm Length")
+    # bar_plot_scores(pos, "Position model cross entropy scores by rhythm")
+    # plt.tight_layout()
+    # plt.show()
+    # x = 0
+
+    length = 16
+    attempts = 63000
+
+    bin_list, scores = rhythm_generator(length, attempts)
+    for j in range(8, 20, 2):
+        rhythms, scores_out = get_closest_n_rhythms(bin_list, scores, n=3, target_score=j, unique_flag=1)
+        for i in range(len(rhythms)):
+            print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}")
+
+    histo_scores(scores)
+    x = 2

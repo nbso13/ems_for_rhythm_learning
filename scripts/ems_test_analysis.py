@@ -132,13 +132,11 @@ def determine_delays_list(rhythm_substr, bpm, header_dict):
         len_count_off_ms = len(header_dict['count_in_substr']) * 30000/bpm  # this is the three second count in
     else:
         len_count_off_ms = 0 # 
-    len_count_off_and_audio_display_ms = len_count_off_ms + header_dict["audio_repeats"] * len_rhythm_ms
-    len_count_off_and_audio_display_and_ems_ms = len_count_off_and_audio_display_ms + header_dict["repeats"] * len_rhythm_ms
-    len_ct_off_audio_disp_ems_and_post_ems_audio_ms = len_count_off_and_audio_display_and_ems_ms + header_dict["post_ems_repeats"] * len_rhythm_ms
 
-
-    delays_list = [len_count_off_ms, len_count_off_and_audio_display_ms, len_count_off_and_audio_display_and_ems_ms, \
-            len_ct_off_audio_disp_ems_and_post_ems_audio_ms, max(contact_x_values)]
+    list_of_delays = [len_count_off_ms]
+    for i in range(header_dict['num_phases']):
+        list_of_delays.append(header_dict['phase_repeats_list'][i] * len_rhythm_ms)
+    list_of_delays.append(max(contact_x_values))
     return delays_list, len_rhythm_ms
         
 def chop_traces(j, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace):
@@ -295,13 +293,10 @@ if __name__ == '__main__':
             # determine distance between performance and ground truth at each repeat for each section i.e., 
             # for each loop of rhythm, calculate EMD for contact trace vs real audio rhythm
 
-            audio_repeats_distances = []
-            ems_repeats_distances = []
-            post_ems_repeats_distances = []
-            no_audio_repeats_distances = []
+            # repeats_distances = [[] for _ in range(len(unique_gt_intervals))]
             distances_list = []
             vp_dist_list = []
-            repeat_list = [header_dict["audio_repeats"], header_dict["repeats"], header_dict["post_ems_repeats"], header_dict["no_audio_repeats"]]
+            repeat_list = header_dict['phase_repeats_list']
 
             # change to pure spikes (complete surround surpression)
             audio_trace_copy = np.copy(audio_trace)
@@ -314,7 +309,7 @@ if __name__ == '__main__':
                 if contact_trace_copy[j] == 1:
                     surpressed_contact_trace[j+1] = 0
 
-            for k in range(header_dict['num_phases']): # for each phase (audio only, ems and audio, post_ems audio only, no audio)
+            for k in range(header_dict['num_phases']): # for each phase
                 for j in range(repeat_list[k]): # for each repeat of the rhythm in this phase
                     spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(j, \
                         surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace)
