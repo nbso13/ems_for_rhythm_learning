@@ -615,50 +615,205 @@ def gather_subject_info():
     
     return participant_number,now, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency, years_musical_training, tactile_ems_stim_intensity, counter_balanced_number, dom_arm
 
-def practice_loop(ems_serial, contact_serial):
-    repeat = True
-    while repeat:
-        reading_list, contact_x_values, _ , _ = play_rhythm(ems_serial, \
-            contact_serial, ems_constants.actual_stim_length, ems_constants.count_in_substr, ems_constants.practice_rhythm, ems_constants.practice_bpm, \
-            ems_constants.metronome_intro_flag, ems_constants.phase_flags_list, ems_constants.phase_repeats_list, ems_constants.samp_period_ms, MEASURED_DELAY) # gives contact trace, audio onset, stim onset.
-        initial_preprocess_and_plot(reading_list, contact_x_values, bpm_index, rhythm_index)
-
-        out = input("practice again? y/n")
-        if out == 'n':
-            repeat = False
-    return
-
 def rotate_list(l, n):
     return l[-n:] + l[:-n]
 
-def initial_preprocess_and_plot(reading_list, contact_x_values, bpm_index, rhythm_index):
+
+def count_zero_gaps(rhyth_string):
+    zero_counter = 0
+    intervs = []
+    for i in range(len(rhyth_string)):
+        if rhyth_string[i] == '0':
+            zero_counter += 1 # add to interval
+        if rhyth_string[i] == '1':
+            intervs.append(zero_counter) # save interval
+            zero_counter = 0 # reset counter
+    if zero_counter > 0:
+        intervs.append(zero_counter)
+    else:
+        intervs.append(0) #ends with a 1
+    return intervs
+
+def play_rhythm_new(ems_serial, contact_ser, actual_stim_length, count_in_substr, rhythm_substr, \
+    bpm, metronome_intro_flag, phase_flags_list, phase_repeats_list, samp_period_ms, delay_val):
+    # mammoth function that should be broken up. takes in serial objects, rhythm parameters,
+        # whether the EMS and the audio should be turned on, whether there should be a metronome intro,
+        # sample period, and measured delay value. Plays the rhythm in audio and EMS and runs threading
+        # to listen to user results.
+
+
+    reading_results = [] # a list that is written to by the thread that is the contact
+    x_value_results = [] # a list of time values corresponding to when each contact data point was recorded
+    
+    max_bpm = math.floor(30000/actual_stim_length) #how many eighthnote pulses could you fit into a 
+    #minute without overlapping?
+    if (bpm > max_bpm):
+        print("max metronome bpm is " + str(max_bpm))
+        return
+
+    #determine pulse+wait length
+    milliseconds_per_eighthnote = 30000/bpm
+    milliseconds_per_whole_note = 8 * milliseconds_per_eighthnote
+
+     ##### write metronome timing array including count off ####
+
+    metronome_times = [i for i in range(0, 16*milliseconds_per_eighthnote, 4*milliseconds_per_eighthnote)]
+    
+    for phase_repeats in phase_repeats_list:
+        for j in range(phase_repeats):
+            last_metronome_pulse = metronome_times[-1]
+            if phase_repeats == 0 and j == 0: # the first one goes right after the count off
+                metronome_times.append(last_metronome_pulse + 4*milliseconds_per_eighthnote)
+            else:
+                metronome_times.append(last_metronome_pulse + milliseconds_per_whole_note)
+    
+    ### count timing for rhythm ###
+    rhythm_times = []
+    time_var = 0
+    # zero_gaps = count_zero_gaps(rhythm_substr)
+    for i in rhythm_substr:
+        if i == '1':
+            rhythm_times.append(time_var)
+            time_var += milliseconds_per_eighthnote
+        if i == '0':
+            time_var += milliseconds_per_eighthnote
+        else:
+            raise ValueError("malformed string")
+
+    total_rhythm_length_ms = time_var
+    assert total_rhythm_length_ms == len(rhythm_substr) * milliseconds_per_eighthnote
+
+    ems_times = []
+    time_var = 0
+    # count off
+    time_var += 16*milliseconds_per_eighthnote
+    for phase_repeats_index in range(len(phase_repeats_list)):
+        if ems_constants.ems_on_flags[phase_repeats_index]:
+            for j in range(phase_repeats_list[phase_repeats_index]):
+                ems_times = ems_times + [i+time_var for i in rhythm_times]
+                time_var += total_rhythm_length_ms
+        else:
+            time_var += total_rhythm_length_ms * phase_repeats_list[phase_repeats_index]
+
+    audio_times = []
+    time_var = 0
+    # count off
+    time_var += 16*milliseconds_per_eighthnote
+    for phase_repeats_index in range(len(phase_repeats_list)):
+        if ems_constants.audio_on_flags[phase_repeats_index]:
+            for j in range(phase_repeats_list[phase_repeats_index]):
+                audio_times = audio_times + [i+time_var for i in rhythm_times]
+                time_var += total_rhythm_length_ms
+        else:
+            time_var += total_rhythm_length_ms * phase_repeats_list[phase_repeats_index]
+            
+
+
+### add 100 milliseconds for things to get set up TO EVERY ENTRY OF EACH TIMER ARRAY
+    metronome_times = [i+100 for i in metronome_times]
+    ems_times = [i+100 for i in ems_times]
+    audio_times = [i+100 for i in audio_times]
+
+    ### add MEAN DELAY to audio and to metronome
+
+    metronome_times = [i+delay_val for i in metronome_times]
+    audio_times = [i+delay_val for i in audio_times]
+
+
+# total eighthnotes in count in, audio display, and rhythm display (EMS+audio)
+    total_eighthnotes = (len(count_in_substr) + (sum(phase_repeats_list)) * len(rhythm_substr))
+
+    len_pres = milliseconds_per_eighthnote*total_eighthnotes + delay_val # length of rhythm presentation
+    audio_onset_times = [] # when list of times audio began to play
+    stim_onset_times = []  # list of times when stim command was sent
+
+    # count off!
+    print("rhythm in 3")
+    time.sleep(1)
+    print("rhythm in 2")
+    time.sleep(1)
+    print("rhythm in 1")
+    time.sleep(1)
+
+    time_naught_thread = time.time() # beginning of time for contact tracing thread. 
+    # SHOULD THIS BE DIFFERENT FROM OTHER BEGINNING TIME COUNT?
+    read_thread = threading.Thread(target=read_contact_trace, args= (contact_ser, len_pres,  \
+        samp_period_ms, reading_results, x_value_results, time_naught_thread)) # creating read thread
+    read_thread.start() 
+
+    # time_naught_main = time.time() # beginning time for EMS and audio threads. 
+    #WHY SHOULD THIS BE DIFFERENT THAN CONTACT THREAD?
+    ## creating EMS and audio and metronome threads ##
+
+    ems_thread = threading.Thread(target=run_rhythm_ems_new, args= (ems_serial, time_naught_thread,  \
+        stim_onset_times, ems_times))
+    audio_thread = threading.Thread(target=run_rhythm_audio_new, args= (time_naught_thread,  \
+        audio_onset_times, audio_times))
+    metronome_thread = threading.Thread(target=metronome_tone_new, args= (time_naught_thread, \
+        metronome_times))
+
+    ems_thread.start()
+    metronome_thread.start()
+    audio_thread.start()
+
+    ems_thread.join()
+    metronome_thread.join()
+    audio_thread.join()
+    read_thread.join()
+    
+    audio_onset_times_ms = [1000 * item for item in audio_onset_times] # take list of onset times from seconds to ms.
+    stim_onset_times_ms = [1000 * item for item in stim_onset_times]
+
+    # reading results is the contact trace list. x value results are time of recording each data point.
+    return reading_results, x_value_results, audio_onset_times_ms, stim_onset_times_ms 
+
+    
+
+def initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm):
     reading_list = np.array(reading_list) # raw recorded touch values
 
     contact_x_values = np.array(contact_x_values) # timestamps
 
-    audio_hold = 30000/ems_constants.bpms[bpm_index] # this math gives the length of time in milliseconds for eighthnote duration
+    audio_hold = 30000/bpm # this math gives the length of time in milliseconds for eighthnote duration
     x_vec = np.arange(0, np.max(contact_x_values), ems_constants.samp_period_ms)
     stim_trace = spike_times_to_traces(stim_onset_times, ems_constants.actual_stim_length,  \
         x_vec, ems_constants.samp_period_ms)
     audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, ems_constants.samp_period_ms)
 
     legend_labels = ["contact trace", "stim trace", "audio trace"]
-    input_title = f"{ems_constants.rhythm_strings_names[rhythm_index]}: {ems_constants.rhythm_strings[rhythm_index]}," + \
-        f"bpm: {rotated_bpm_list[bpm_index]}"
+    input_title = f"{ems_constants.rhythm_strings_names[rhythm_index]}: {rhythm}," + \
+        f"bpm: {bpm}"
 
     plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace,  \
         x_vec, ems_constants.samp_period_ms, legend_labels, input_title)
 
     return reading_list, contact_x_values
 
+
+def practice_loop(ems_serial, contact_serial, measured_delay, rhythm, bpm):
+    repeat = True
+    while repeat:
+        reading_list, contact_x_values, _ , _ = play_rhythm(ems_serial, \
+            contact_serial, ems_constants.actual_stim_length, ems_constants.count_in_substr, rhythm, bpm, \
+            ems_constants.metronome_intro_flag, ems_constants.phase_flags_list, ems_constants.phase_repeats_list, ems_constants.samp_period_ms, measured_delay) # gives contact trace, audio onset, stim onset.
+        
+        initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm)
+
+        out = input("practice again? y/n")
+        if out == 'n':
+            repeat = False
+    return
 # example: command_str = "C0I100T750G \n"
 
+def tester():
+    assert count_zero_gaps('01001011011001') == [1,2,1,0,1,0,1,2,0], "count zero gaps failed."
+    return
 
 # _____________________________________________________
 # _____________________### MAIN ###____________________
 
 if __name__ == '__main__':
-    
+    tester()
     #start timer
     tic = time.time()
 
@@ -725,7 +880,7 @@ if __name__ == '__main__':
     ### PRACTICE MIMICKING RHYTHMS
     out = input("Practice initiate? y/n")
     if out == 'y':
-        practice_loop()
+        practice_loop(ems_serial, contact_serial, MEASURED_DELAY, ems_constants.practice_rhythm, ems_constants.practice_bpm)
         
     for rhythm_index in range(len(ems_constants.rhythm_strings)): # for each of the different rhythms
         rotated_bpm_list = rotate_list(shuffled_bpm_list, rhythm_index)
@@ -752,7 +907,7 @@ if __name__ == '__main__':
             contact_serial, ems_constants.actual_stim_length, ems_constants.count_in_substr, rhythm_substr, bpm, \
             ems_constants.metronome_intro_flag, ems_constants.phase_flags_list, ems_constants.phase_repeats_list, ems_constants.samp_period_ms, MEASURED_DELAY) 
 
-            reading_list, contact_x_values = initial_preprocess_and_plot(reading_list, contact_x_values, bpm_index, rhythm_index)
+            reading_list, contact_x_values = initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm_substr)
 
             data_header = ["time values (ms)", "contact trace", "stim time onsets", "audio time onsets"]
             

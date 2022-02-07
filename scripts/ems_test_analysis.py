@@ -213,9 +213,11 @@ def count_intervals(rhyth_string):
         if rhyth_string[i] == '1':
             intervs.append(zero_counter) # save interval
             zero_counter = 0 # reset counter
+    if zero_counter == len(rhyth_string): # no intervals, empty string
+        unique_intervals = []
+        num_unique = 0
+        return intervs, unique_intervals, num_unique
     intervs[0] += zero_counter # add trailing zeros to first measured interval
-    if intervs[0] == 0:
-        intervs.pop()
     unique_intervals = list(set(intervs))
     num_unique = len(unique_intervals)
     return intervs, unique_intervals, num_unique

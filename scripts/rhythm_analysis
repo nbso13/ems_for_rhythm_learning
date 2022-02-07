@@ -13,7 +13,7 @@ import quantities as pq
 from elephant.spike_train_dissimilarity import victor_purpura_distance
 from neo import SpikeTrain
 import scipy
-
+from ems_test_analysis import count_intervals
 
 def bar_plot_scores(scores, title):
     fig, ax = plt.subplots()
@@ -25,6 +25,18 @@ def bar_plot_scores(scores, title):
     ax.bar(np.arange(len(scores)), scores, align='center')
     plt.tight_layout()
     
+def ioi_ent(rhyth_str): # calculated as in Milne and Herff 2020
+    possible_intervals = range(0, len(rhyth_str)) # x axis of probability distribtuon
+    intervs, _, _ = count_intervals(rhyth_str) # get all the intervals in the rhythm
+    if len(intervs) == 0:
+        return 0
+    summation = 0 # summing variable
+    num_onsets = len(intervs) # number of onsets to normalize by
+    for i in range(len(possible_intervals)): # for every possible interval
+        counter = intervs.count(possible_intervals[i]) # get the number of that interval present in the rhythm
+        if not(counter == 0): # if it's not 0
+            summation += -1 * counter/num_onsets * np.log(counter/num_onsets) # add to entropy
+    return summation
 
 
 def rhythm_cross_entropy(probabilities):
@@ -70,7 +82,7 @@ def classify_anchor_status(note_level, rhythm_string, ch_index):
         raise ValueError('Anchor status could not be determined')
     return probability
 
-def hierarchical_model(rhyth_string):
+def hierarchical_model(rhyth_string, ioi_ent_flag):
     # for a given string, for each entry, determines note level, anchor status, then probability
     probabilities = []
     for ch_index in range(len(rhyth_string)): # for each location in rhythm string
@@ -99,12 +111,17 @@ def hierarchical_model(rhyth_string):
         probabilities.append(probability) # add to probabilities
 
     normed_cross_ent = rhythm_cross_entropy(probabilities) # calculate 
+    if ioi_ent_flag:
+        ent = ioi_ent(rhyth_string)
+        if ent == 0: #not to discount these strings
+            ent = 0.1
+        normed_cross_ent = normed_cross_ent * ent
     return(normed_cross_ent)
         
 
 
 
-def random_rhythm(length, num_rhyths):
+def random_rhythm(length, num_rhyths, no_double_stroke_flag, num_onsets=0):
     max_val = 2**length
     if max_val < num_rhyths:
         raise ValueError("Asking for more unique rhythms than are possible")
@@ -113,19 +130,35 @@ def random_rhythm(length, num_rhyths):
     for number in rhyth_number_out:
         str_bin = bin(number)
         str_bin = str_bin[2:]
-        if not('11' in str_bin):
-            bin_strs.append(str_bin)
+        if no_double_stroke_flag:
+            first_and_last_ones_bool = (len(str_bin) == length) and (str_bin[0] == '1' and str_bin[-1] == '1')
+            if not('11' in str_bin) and not(first_and_last_ones_bool):
+                if num_onsets > 0:
+                    if str_bin.count('1') == num_onsets:
+                        bin_strs.append(str_bin)
+                else:
+                    bin_strs.append(str_bin)
+        else:
+            if num_onsets > 0:
+                if str_bin.count('1') == num_onsets:
+                    bin_strs.append(str_bin)
+            else:
+                bin_strs.append(str_bin)
     return bin_strs
 
 
-def rhythm_generator(length, attempts):
-    bin_list = random_rhythm(length, attempts)
+def rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag, num_onsets):
+    bin_list = random_rhythm(length, attempts, no_double_stroke_flag, num_onsets)
     scores = []
+    ioi_ents = []
     for i in range(len(bin_list)):
         if len(bin_list[i]) < length:
             bin_list[i] = '0'*(length-len(bin_list[i])) + bin_list[i]
-        scores.append(round(hierarchical_model(bin_list[i]), 4))
-    return bin_list, scores
+        no_ioi_hier_model_score = hierarchical_model(bin_list[i], ioi_ent_flag=model_score_ioi_ent_flag)
+        scores.append(round(no_ioi_hier_model_score, 5)) # rounding to get slightly different scores/unique rhythms/not rearranged versions of each other.
+        ioi_ents.append(ioi_ent(bin_list[i]))
+
+    return bin_list, scores, ioi_ents 
 
     
 def histo_scores(scores):
@@ -135,26 +168,30 @@ def histo_scores(scores):
     fig, ax = plt.subplots()
     ax.hist(scores, bins=40)  # density=False would make counts
     ax.set_ylabel("count")
-    ax.set_xlabel('Interval length, ms')
-    ax.set_title("interval frequency")
+    ax.set_xlabel('Hierarch Model Score')
+    ax.set_title("Score Frequency")
     return
 
 
-def get_closest_n_rhythms(total_binary_list, corresponding_scores, n, target_score, unique_flag):
+def get_closest_n_rhythms(total_binary_list, corresponding_scores, corresponding_ents, n, target_score, unique_flag):
     if unique_flag:
         unique_scores = set(corresponding_scores)
         unique_score_rhythms = []
+        unique_score_ents = []
         for i in unique_scores:
             ind = corresponding_scores.index(i)
             unique_score_rhythms.append(total_binary_list[ind])
+            unique_score_ents.append(corresponding_ents[ind])
         total_binary_list = unique_score_rhythms
         corresponding_scores = unique_scores
+        corresponding_ents = unique_score_ents
 
 
     distance = [abs(score - target_score) for score in corresponding_scores]
     sorted_rhythms = [x for _,x in sorted(zip(distance, total_binary_list))]
     sorted_scores = [x for _,x in sorted(zip(distance, corresponding_scores))]
-    return sorted_rhythms[0:n], sorted_scores[0:n]
+    sorted_ents = [x for _,x in sorted(zip(distance, corresponding_ents))]
+    return sorted_rhythms[0:n], sorted_scores[0:n], sorted_ents[0:n]
 
     
 if __name__ == '__main__':
@@ -181,13 +218,28 @@ if __name__ == '__main__':
     # x = 0
 
     length = 16
-    attempts = 63000
+    attempts = 65530
 
-    bin_list, scores = rhythm_generator(length, attempts)
-    for j in range(8, 20, 2):
-        rhythms, scores_out = get_closest_n_rhythms(bin_list, scores, n=3, target_score=j, unique_flag=1)
-        for i in range(len(rhythms)):
-            print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}")
+    model_score_ioi_ent_flag = 0 # if yes, include ioi entropy into model
+    bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=0, num_onsets=6)
+    num_onsets = [rhythm.count('1') for rhythm in bin_list]
+    if model_score_ioi_ent_flag:
+        for j in range(5, 17, 2):
+            rhythms, scores_out, _ = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=3, target_score=j, unique_flag=1)
+            for i in range(len(rhythms)):
+                print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}")
+    else:
+        for j in range(8, 20, 2):
+            rhythms, scores_out, ioi_ents_out = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=3, target_score=j, unique_flag=1)
+            for i in range(len(rhythms)):
+                print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}, ioi_ent: {ioi_ents_out[i]}")
 
     histo_scores(scores)
+
+    fig, ax = plt.subplots()
+    ax.set_title("Num Onsets vs Hierarchical Model Score")
+    ax.set_ylabel("Num Onsets")
+    ax.set_xlabel("Score")
+    ax.scatter(scores, num_onsets)
+
     x = 2
