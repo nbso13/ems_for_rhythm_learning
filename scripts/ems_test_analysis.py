@@ -223,6 +223,46 @@ def count_intervals(rhyth_string):
     return intervs, unique_intervals, num_unique
     
 
+def emd_test(title, times_a, times_b, mini, maxi, samp_period):
+    xvec = np.arange(mini, maxi, samp_period)
+    trace_a = spike_times_to_traces(times_a, samp_period, xvec, samp_period)
+    trace_b = spike_times_to_traces(times_b, samp_period, xvec, samp_period)
+    emd = earth_movers_distance(times_a, times_b, trace_a, trace_b)
+    title = title + f", emd = {emd}"
+    plot_traces(xvec, [trace_a, trace_b], samp_period, ["a", "b"], title)
+    return emd
+
+
+def emd_tests():
+    mini = 0
+    maxi = 6
+    samp_period = 0.01
+    titles = ["times b just after", "times b just before", "times b mixed", \
+        "times b missing beat", "times b missing two beats", "times b extra beat", \
+            "times b extra two beats", "times b extra beat end range", "times b extra beat mid range"]
+
+    times_a = [1, 2, 3, 4, 5]
+    times_bs = [ [1.1, 2.1, 3.1, 4.1, 5.1], [0.9, 1.9, 2.9, 3.9, 4.9], [1.1, 1.9, 3.1, 3.9, 5.1], \
+        [1.1, 2.1, 3.1, 5.1], [1.1, 3.1, 5.1], [1.1, 2.1, 3.1, 4.1, 4.5, 5.1],  \
+            [1.1, 2.1, 3.1, 3.5, 4.1, 4.5, 5.1 ], [1.1, 2.1, 3.1, 4.1, 4.9, 5.1], [1.1, 2.1, 3.1, 3.2, 4.1, 5.1]]
+
+    emds = []
+    for i in range(len(times_bs)):
+        times_b = times_bs[i]
+        title = titles[i]
+        emds.append(emd_test(title, times_a, times_b, mini, maxi, samp_period))
+
+    fig, ax = plt.subplots()
+    ax.set_xticks(np.arange(len(titles)))
+    ax.set_xticklabels(titles)
+    ax.set_title("Bar plot for EMDS across tests")
+    ax.set_ylabel("EMD")
+    plt.xticks(rotation=45, ha="right")
+    ax.bar(np.arange(len(titles)), emds, align='center')
+    plt.tight_layout()
+    return 
+
+
 
 
 
@@ -231,6 +271,11 @@ def count_intervals(rhyth_string):
 # _____________________### MAIN ###____________________
 
 if __name__ == '__main__':
+
+    ### run tests ###
+    emd_tests()
+
+
     ### load header
     header_dict = load_header()
 

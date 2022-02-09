@@ -33,11 +33,14 @@ bpms = [100, 160, 130, 115, 145, 175] # shuffled
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
 # no_audio_repeats = 4
+prep_time_ms = 100
+update_period_ms = 2 
+refractory_period_ms = 250 
 audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
 phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
-phase_repeats_list = [4, 4, 4, 4, 4] # repeats at each phase
+phase_repeats_list = [1, 1, 1, 1, 1] # repeats at each phase
 phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
@@ -45,7 +48,7 @@ ems_on_flags = [0, 0, 1, 0, 0]
 metronome_intro_flag = 1 # if we want a count in
 samp_period_ms = 2 # milliseconds
 delay_trial_num = 10 # if measuring delay, this is how many trials we use
-sleep_len = 2 # seconds of waiting while zeroing sensor
+sleep_len_ms = 500 # seconds of waiting while zeroing sensor
 sd_more_than_mult = 7 # deprecated
 actual_stim_length = 150 # actual stim length
 baseline_subtractor = 15 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
@@ -53,7 +56,7 @@ surpression_window = 250 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
-port_contact = '/dev/cu.usbmodem11401'
+port_contact = '/dev/cu.usbmodem11201'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
@@ -97,6 +100,9 @@ runtime_parameters = {
     "rhythm_strings_names" : rhythm_strings_names,
     # , "clave", "five_to_four", "three_to_four", \
     #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
+    "update_period_ms" : update_period_ms,
+    "refractory_period_ms" : refractory_period_ms,
+    "prep_time_ms" : prep_time_ms,
     "bpms_ordered" : bpms_ordered, #bpms to try
     "bpms" : bpms, # shuffled
     "audio_on_flags" : audio_on_flags,
@@ -109,7 +115,7 @@ runtime_parameters = {
     "metronome_intro_flag" : metronome_intro_flag, # if we want a count in
     "samp_period_ms" : samp_period_ms, # milliseconds
     "delay_trial_num" : delay_trial_num, # if measuring delay, this is how many trials we use
-    "sleep_len" : sleep_len, # seconds of waiting while zeroing sensor
+    "sleep_len_ms" : sleep_len_ms, # seconds of waiting while zeroing sensor
     "actual_stim_length" : actual_stim_length, # actual stim length
     "baseline_subtractor" : baseline_subtractor, # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
     "surpression_window" : surpression_window, # ms BACK THIS UP EXPERIMENTALLY?
