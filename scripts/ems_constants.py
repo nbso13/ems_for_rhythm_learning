@@ -3,32 +3,47 @@ import numpy as np
 
 
 # CURRENT PARAMS FOR NICK: 7 intensity 150 ms.
-practice_rhythm = "1000001010001000"
+practice_rhythm = "1000100000100000"
 practice_bpm = 130
 to_the_beat_substr = "1000100010001000"
 lunch_room_beat = "10001000101010001010101000101000"
 clave_substr = "0010100010010010"
 five_to_four_substr = "10000100001000010000"
-three_to_four_substr = "100100100100"
+three_to_four_substr = "1001001001001000"
 seven_to_four = "1000000100000010000001000000"
-syncopated_substr = "00100010000100010000"
-bass_drum_pattern = "10100000100000101000000010000000"
+syncopated_substr = "0010001000100010"
+bass_drum_pattern = "1010010100100100"
 flip_the_beat = "1000100100010000"
-telescoping = "1000001000010001001000"
+telescoping = "1000100101001000"
 count_in_substr = '1000100010001000'
+random_generated_one = "1000100010100100"
+random_generated_two = "0100010001010010"
 nothing_str = '00000000'
 all_str = '11111111'
 almost_all = '11111011'
-rhythm_strings = [ to_the_beat_substr, clave_substr, flip_the_beat] # 
+random_three = '0010001001000001'
+random_four = '0100100001001000'
+random_five = '0100100010000010'
+fandango = '100000100000100000100000'
+solea = '000010000010001000100010'
+buleria = '000010000000101000100010' 
+seguiria = '100010001000001000001000'
+guajira = '100000100000100010001000'
+alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
+# rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
+rhythm_strings = [to_the_beat_substr, random_three,  three_to_four_substr, random_four, syncopated_substr,  random_five] # 
+
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["to_the_beat_substr", "clave_substr", "flip_the_beat"] 
+rhythm_strings_names = ["to_the_beat_substr", "random_three",  "three_to_four_substr", "random_four","syncopated_substr",  "random_five"] # 
+
+# rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
-bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
-bpms = [100, 160, 130, 115, 145, 175] # shuffled  
+# bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
+bpms = [105, 90, 150, 120, 135, 165] # shuffled  
 # repeats = 4 # ems and audio period repeats
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
@@ -40,31 +55,32 @@ audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
 phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
-phase_repeats_list = [1, 1, 1, 1, 1] # repeats at each phase
+phase_repeats_list = [3, 3, 3, 1, 3] # repeats at each phase
 phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
 ems_on_flags = [0, 0, 1, 0, 0]
 metronome_intro_flag = 1 # if we want a count in
 samp_period_ms = 2 # milliseconds
-delay_trial_num = 10 # if measuring delay, this is how many trials we use
-sleep_len_ms = 500 # seconds of waiting while zeroing sensor
+delay_trial_num = 12 # if measuring delay, this is how many trials we use
+sleep_len_ms = 1000 # seconds of waiting while zeroing sensor
 sd_more_than_mult = 7 # deprecated
-actual_stim_length = 150 # actual stim length
+actual_stim_length = 155 # actual stim length
 baseline_subtractor = 15 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
 surpression_window = 250 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
-port_contact = '/dev/cu.usbmodem11201'
+delay_reduction = 120 # ms
+port_contact = '/dev/cu.usbmodem11101'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
 verbose_mode = 0
 channel = 0
 read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
-
-
+cutoff_freq_low = 0.005 # 100 ms longest wave length component before attenuation during high pass filtering
+cutoff_freq_high = 0.1 # 20 ms shortest allowed wave 
 level_zero_probability = 0.891 # Hayden motzart
 distances_to_next_level = [8, 4, 2, 1]
 metrical_position_probabilities = [0.988, 0.092, 0.584, 0.309, 0.842, 0.126, 0.794, 0.313]
@@ -81,6 +97,9 @@ anchor_stat = {
 
 runtime_parameters = {
     "to_the_beat_substr" : to_the_beat_substr,
+    "random_three" : random_three,
+    "random_four" : random_four,
+    "random_five" : random_five,
     "lunch_room_beat" : lunch_room_beat,
     "clave_substr" : clave_substr,
     "five_to_four_substr" : five_to_four_substr,
@@ -95,6 +114,8 @@ runtime_parameters = {
     "all_str" : all_str,
     "almost_all" : almost_all,
     "rhythm_strings" : rhythm_strings,
+    "random_generated_one" : random_generated_one,
+    "random_generated_two" : random_generated_two,
     # clave_substr, five_to_four_substr, three_to_four_substr,  \
     #     syncopated_substr, bass_drum_pattern, flip_the_beat
     "rhythm_strings_names" : rhythm_strings_names,
@@ -103,7 +124,6 @@ runtime_parameters = {
     "update_period_ms" : update_period_ms,
     "refractory_period_ms" : refractory_period_ms,
     "prep_time_ms" : prep_time_ms,
-    "bpms_ordered" : bpms_ordered, #bpms to try
     "bpms" : bpms, # shuffled
     "audio_on_flags" : audio_on_flags,
     "ems_on_flags" : ems_on_flags,

@@ -14,6 +14,8 @@ from elephant.spike_train_dissimilarity import victor_purpura_distance
 from neo import SpikeTrain
 import scipy
 from ems_test_analysis import count_intervals
+import sys 
+import time
 
 def bar_plot_scores(scores, title):
     fig, ax = plt.subplots()
@@ -43,7 +45,7 @@ def rhythm_cross_entropy(probabilities):
     summed = 0
     for prob in probabilities: # for each probability sum negative log
         summed += -np.log(prob)
-    normed = summed # /len(probabilities)
+    normed = summed #(probabilities)
     return normed
 
 def fine_grained_met(rhyth_string):
@@ -125,22 +127,56 @@ def random_rhythm(length, num_rhyths, no_double_stroke_flag, num_onsets=0):
     max_val = 2**length
     if max_val < num_rhyths:
         raise ValueError("Asking for more unique rhythms than are possible")
-    rhyth_number_out = random.sample(range(0, max_val), num_rhyths)
+    rhyth_number_out = random.sample(range(1, max_val), num_rhyths)
     bin_strs = []
-    for number in rhyth_number_out:
-        str_bin = bin(number)
-        str_bin = str_bin[2:]
-        if no_double_stroke_flag:
-            first_and_last_ones_bool = (len(str_bin) == length) and (str_bin[0] == '1' and str_bin[-1] == '1')
-            if not('11' in str_bin) and not(first_and_last_ones_bool):
-                if num_onsets > 0:
-                    if str_bin.count('1') == num_onsets:
+    counter = 0
+    if num_onsets > 0:
+        for number in rhyth_number_out:
+            counter += 1
+            sys.stdout.write("\r" + f" sorting rhythm {counter} of {num_rhyths}")   #The \r is carriage return without a line 
+                                        #feed, so it erases the previous line.
+            sys.stdout.flush()
+            str_bin = bin(number)
+            str_bin = str_bin[2:]
+            if (str_bin.count('1') == num_onsets):
+                if no_double_stroke_flag: # 1000000010001
+                    first_and_last_ones_bool = False
+                    if (len(str_bin) > length - 2):
+                        if str_bin[0] == '1' and str_bin[-1] == '1':
+                            first_and_last_ones_bool = True
+                        elif str_bin[0:2] == '01' and str_bin[-1] == '1':
+                            first_and_last_ones_bool = True
+                        elif str_bin[0] == '1' and str_bin[-2:] == '10':
+                            first_and_last_ones_bool = True
+                        else:
+                            first_and_last_ones_bool = False
+                    if (str_bin.count('1') == num_onsets) and (not('11' in str_bin) and not('101' in str_bin) and not(first_and_last_ones_bool)):
                         bin_strs.append(str_bin)
                 else:
                     bin_strs.append(str_bin)
-        else:
-            if num_onsets > 0:
-                if str_bin.count('1') == num_onsets:
+            else:
+                pass
+
+    else: 
+        for number in rhyth_number_out:
+            counter += 1
+            sys.stdout.write("\r" + f" sorting rhythm {counter} of {num_rhyths}")   #The \r is carriage return without a line 
+                                        #feed, so it erases the previous line.
+            sys.stdout.flush()
+            str_bin = bin(number)
+            str_bin = str_bin[2:]
+            if no_double_stroke_flag: # 1000000010001
+                first_and_last_ones_bool = False
+                if (len(str_bin) > length - 2):
+                    if str_bin[0] == '1' and str_bin[-1] == '1':
+                        first_and_last_ones_bool = True
+                    elif str_bin[0:1] == '01' and str_bin[-1] == '1':
+                        first_and_last_ones_bool = True
+                    elif (str_bin[0] == '1') and (str_bin[-2:-1] == '10'):
+                        first_and_last_ones_bool = True
+                    else:
+                        pass
+                if not('11' in str_bin) and not('101' in str_bin) and not(first_and_last_ones_bool):
                     bin_strs.append(str_bin)
             else:
                 bin_strs.append(str_bin)
@@ -149,9 +185,14 @@ def random_rhythm(length, num_rhyths, no_double_stroke_flag, num_onsets=0):
 
 def rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag, num_onsets):
     bin_list = random_rhythm(length, attempts, no_double_stroke_flag, num_onsets)
+    print("rhythms generated")
     scores = []
     ioi_ents = []
     for i in range(len(bin_list)):
+        sys.stdout.write("\r" + f" scoring generated rhythm {i} of {len(bin_list)}")   #The \r is carriage return without a line 
+                                        #feed, so it erases the previous line.
+        sys.stdout.flush()
+
         if len(bin_list[i]) < length:
             bin_list[i] = '0'*(length-len(bin_list[i])) + bin_list[i]
         no_ioi_hier_model_score = hierarchical_model(bin_list[i], ioi_ent_flag=model_score_ioi_ent_flag)
@@ -195,33 +236,32 @@ def get_closest_n_rhythms(total_binary_list, corresponding_scores, corresponding
 
     
 if __name__ == '__main__':
-    # hiers = []
-    # pos = []
-    # leng = []
+    hiers = []
+    pos = []
+    leng = []
 
-    # for rhythm_ind in range(len(ems_constants.rhythm_strings)):
-    #     rhythm = ems_constants.rhythm_strings[rhythm_ind]
-    #     normed_cross_ent_hier = hierarchical_model(rhythm)
-    #     hiers.append(normed_cross_ent_hier)
-    #     normed_cross_ent_position = fine_grained_met(rhythm)
-    #     pos.append(normed_cross_ent_position)
-    #     leng.append(len(rhythm))
-    #     print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
+    for rhythm_ind in range(len(ems_constants.rhythm_strings)):
+        rhythm = ems_constants.rhythm_strings[rhythm_ind]
+        normed_cross_ent_hier = hierarchical_model(rhythm, ioi_ent_flag=1)
+        hiers.append(normed_cross_ent_hier)
+        normed_cross_ent_position = fine_grained_met(rhythm)
+        pos.append(normed_cross_ent_position)
+        leng.append(len(rhythm))
+        print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
     
     
     
-    # bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
-    # bar_plot_scores(leng, "Rhythm Length")
+    bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
+    bar_plot_scores(leng, "Rhythm Length")
     # bar_plot_scores(pos, "Position model cross entropy scores by rhythm")
-    # plt.tight_layout()
-    # plt.show()
-    # x = 0
+    plt.tight_layout()
+    x = 0
 
     length = 16
-    attempts = 65530
+    attempts = 65500
 
-    model_score_ioi_ent_flag = 0 # if yes, include ioi entropy into model
-    bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=0, num_onsets=6)
+    model_score_ioi_ent_flag = 1 # if yes, include ioi entropy into model
+    bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=1, num_onsets=0)
     num_onsets = [rhythm.count('1') for rhythm in bin_list]
     if model_score_ioi_ent_flag:
         for j in range(5, 17, 2):

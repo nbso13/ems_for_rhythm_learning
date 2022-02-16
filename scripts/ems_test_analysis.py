@@ -12,6 +12,51 @@ import quantities as pq
 from elephant.spike_train_dissimilarity import victor_purpura_distance
 from neo import SpikeTrain
 import scipy
+import numpy as np
+import pandas as pd
+from scipy import signal
+
+def sine_generator(fs, sinefreq, duration):
+    T = duration
+    nsamples = fs * T
+    w = 2. * np.pi * sinefreq
+    t_sine = np.linspace(0, T, nsamples, endpoint=False)
+    y_sine = np.sin(w * t_sine)
+    result = pd.DataFrame({ 
+        'data' : y_sine} ,index=t_sine)
+    return result
+
+def butter_highpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = signal.butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def butter_lowpass(cutOff, fs, order=5):
+    nyq = 0.5 * fs
+    normalCutoff = cutOff / nyq
+    b, a = signal.butter(order, normalCutoff, btype='low', analog = True)
+    return b, a
+
+def butter_lowpass_filter(data, cutOff, fs, order=4):
+    b, a = butter_lowpass(cutOff, fs, order=order)
+    y = signal.lfilter(b, a, data)
+    return y
+
+def butter_band_pass_filter(x_vec, data, cutoff_low, cutoff_high, fs, plot_flag, order=5):
+    b, a = butter_highpass(cutoff_low, fs, order=order)
+    y = signal.filtfilt(b, a, data)
+    # y = butter_lowpass_filter(y, cutoff_high, fs)
+    if plot_flag == 1:
+        plt.figure(figsize=(20,10))
+        plt.subplot(211)
+        plt.plot(x_vec, data)
+        plt.title('input signal')
+        plt.subplot(212)
+        plt.plot(x_vec, y)
+        plt.title('filtered signal')
+        plt.show()
+    return y
 
 def spike_times_to_traces(onset_times, hold_length, x_vector, samp_period):
     # take a series of onset time points and craft plottable traces.
@@ -49,6 +94,15 @@ def plot_w_k(axes_array, means, sds, title_list):
     plt.pause(0.01)
     return slopes, intercepts, r_vals, p_vals
 
+def interpolate(reading_list, contact_x, samp_period):
+    contact_x = contact_x - contact_x[0]
+    contact_x_interped = np.arange(0, max(contact_x), samp_period)
+    f = scipy.interpolate.interp1d(contact_x, reading_list)
+    reading_interped = f(contact_x_interped)
+    return contact_x_interped, reading_interped
+
+
+
 def plot_traces(x_array, trace_list, samp_period, legend_labels, title):
     fig, ax = plt.subplots()
     ax.set_yticks(np.arange(0, 500, 100))
@@ -82,6 +136,7 @@ def victor_purp(onset_times_1, onset_times_2, loop_begin, loop_end):
     st_b = SpikeTrain(onset_times_2, units='ms', t_start = 0, t_stop= loop_end-loop_begin)
     vp_f = victor_purpura_distance([st_a, st_b], q)[1][0] # give only the distance between the two different trains (not diagonal)
     return vp_f
+
 
 # TEST THIS FUNCTION
 def compile_unique_interval_list(intervals, tolerance):
@@ -126,22 +181,22 @@ def read_array_values(time_readings_length, variables_number, worksheet):
 
 def determine_delays_list(rhythm_substr, bpm, header_dict):
     # determine the exact beginning timestamp (delays_list) for each phase (pre-ems audio, ems, post-ems audio, no audio)
-    len_rhythm_ms = len(rhythm_substr) * 30000/bpm + 75 ### tHIS IS SOMEHOW OFF BU ABOUT 75 MS?????
-    warnings.warn("Adding 75 ms to rhythm length for unknown reason?")
+    len_rhythm_ms = len(rhythm_substr) * 30000/bpm #+ 75 ### tHIS IS SOMEHOW OFF BU ABOUT 75 MS?????
+    # warnings.warn("Adding 75 ms to rhythm length for unknown reason?")
     if header_dict['metronome_intro_flag'] == 1:
         len_count_off_ms = len(header_dict['count_in_substr']) * 30000/bpm  # this is the three second count in
     else:
         len_count_off_ms = 0 # 
 
-    list_of_delays = [len_count_off_ms]
-    for i in range(header_dict['num_phases']):
-        list_of_delays.append(header_dict['phase_repeats_list'][i] * len_rhythm_ms)
-    list_of_delays.append(max(contact_x_values))
-    return delays_list, len_rhythm_ms
+    list_of_delays = [len_count_off_ms] # first phase begins after count off
+    for i in range(header_dict['num_phases']): # for every phase, find the end of the phase and tack it on.
+        last_time = list_of_delays[-1] # get the last time (end of last phase, beginning of this one)
+        list_of_delays.append(last_time + header_dict['phase_repeats_list'][i] * len_rhythm_ms) #get the number of repeats and find the length in time in ms and add it on
+    return list_of_delays, len_rhythm_ms
         
-def chop_traces(j, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace):
-    loop_begin = delays_list[k] + j * len_rhythm_ms - 0.5*30000/bpm #include half an eighthnote before
-    loop_end = loop_begin + len_rhythm_ms + 1 * 30000/bpm #include half an eighthnote after as well
+def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list):
+    loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
+    loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
     audio_bool = np.logical_and((audio_onset_times >= loop_begin), (audio_onset_times <= loop_end)) # select audio onset times during this loop of rhythm
     spike_times_contact = surpressed_contact_onset_times[contact_bool] - loop_begin # how many spikes total?
@@ -232,6 +287,22 @@ def emd_test(title, times_a, times_b, mini, maxi, samp_period):
     plot_traces(xvec, [trace_a, trace_b], samp_period, ["a", "b"], title)
     return emd
 
+def filter_test():
+    fps = 30
+    sine_fq = 10 #Hz
+    duration = 10 #seconds
+    sine_5Hz = sine_generator(fps,sine_fq,duration)
+    sine_fq = 1 #Hz
+    duration = 10 #seconds
+    sine_1Hz = sine_generator(fps,sine_fq,duration)
+    sine_fq = 50 #Hz
+    duration = 10 #seconds
+    sine_50Hz = sine_generator(fps,sine_fq,duration)
+
+    sine = sine_5Hz + sine_1Hz + sine_50Hz
+    x = np.arange(0, duration, 1/fps)
+    filtered_sine = butter_band_pass_filter(x, sine.data, 9, 20, fps, plot_flag=1)
+
 
 def emd_tests():
     mini = 0
@@ -273,7 +344,8 @@ def emd_tests():
 if __name__ == '__main__':
 
     ### run tests ###
-    emd_tests()
+    # emd_tests()
+    # filter_test()
 
 
     ### load header
@@ -291,7 +363,7 @@ if __name__ == '__main__':
 
     # doing analyses FOR EACH RHYTHM separately.
     rhythm_strings = header_dict['rhythm_strings']
-    for rhythm_index in range(len(rhythm_strings)):
+    for rhythm_index in range(len(rhythm_strings)): # for each string
         rhythm_substr = rhythm_strings[rhythm_index]
         count = count + 1
 
@@ -301,7 +373,7 @@ if __name__ == '__main__':
         list_of_vp_distances_by_bpm = []
         emds_normed = []
 
-        bpms = header_dict['bpms']
+        bpms = header_dict['bpms'] # for each bpm
         for bpm_index in range(len(bpms)):
             bpm = bpms[bpm_index]
             worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}_bpm{bpm}"]
@@ -309,10 +381,14 @@ if __name__ == '__main__':
 
             ## make the appropriate size data array and read in values.
             contact_x_values, reading_list, stim_onset_times, audio_onset_times = read_array_values(time_readings_length, variables_number, worksheet)
-
+            cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
+            cutoff_freq_high = ems_constants.cutoff_freq_high
+            contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, header_dict['samp_period_ms'])
+            reading_list_filtered = butter_band_pass_filter(contact_x_interped, reading_list_interped, cutoff_freq_low, cutoff_freq_high, header_dict['samp_period_ms'], plot_flag=0)
+            
             ## preprocessing
             audio_hold = 30000/bpm 
-            x_vec = np.arange(0, np.max(contact_x_values), header_dict['samp_period_ms'])
+            x_vec = contact_x_interped
             stim_trace = spike_times_to_traces(stim_onset_times, header_dict['actual_stim_length'], x_vec, header_dict['samp_period_ms'])
             audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, header_dict['samp_period_ms'])
 
@@ -320,7 +396,7 @@ if __name__ == '__main__':
             # legend_labels = ["contact trace", "stim trace", "audio trace"]
             # plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace, x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
 
-            surpressed_contact_onset_times = process_contact_trace_to_hit_times(reading_list, contact_x_values, ems_constants.baseline_subtractor, ems_constants.surpression_window)
+            surpressed_contact_onset_times = process_contact_trace_to_hit_times(reading_list_filtered, contact_x_interped, ems_constants.baseline_subtractor, ems_constants.surpression_window)
             surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, x_vec, header_dict['samp_period_ms'])
 
             # legend_labels = ["surpressed contact trace", "stim trace", "audio trace"]
@@ -337,8 +413,7 @@ if __name__ == '__main__':
 
             delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
             
-            # determine distance between performance and ground truth at each repeat for each section i.e., 
-            # for each loop of rhythm, calculate EMD for contact trace vs real audio rhythm
+            # determine distance between performance and ground truth for the entire phase.
 
             # repeats_distances = [[] for _ in range(len(unique_gt_intervals))]
             distances_list = []
@@ -356,17 +431,16 @@ if __name__ == '__main__':
                 if contact_trace_copy[j] == 1:
                     surpressed_contact_trace[j+1] = 0
 
-            for k in range(header_dict['num_phases']): # for each phase
-                for j in range(repeat_list[k]): # for each repeat of the rhythm in this phase
-                    spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(j, \
-                        surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace)
-                    emd = earth_movers_distance(spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected) # run emd
-                    distances_list.append(emd) # add to appropriate list.
-                    # vp_dist = victor_purp(spike_times_contact, spike_times_audio, loop_begin, loop_end)
-                    # vp_dist_list.append(vp_dist) 
-                    title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
-                    # if count == 2:
-                        # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
+            for k in range(len(delays_list)-1): # for each phase
+                spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(k, \
+                    surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list)
+                emd = earth_movers_distance(spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected) # run emd
+                distances_list.append(emd) # add to appropriate list.
+                # vp_dist = victor_purp(spike_times_contact, spike_times_audio, loop_begin, loop_end)
+                # vp_dist_list.append(vp_dist) 
+                title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
+                # if count == 2:
+                    # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
 
             dist_array = np.array(distances_list)
             dist_array[dist_array == -1] = max(dist_array)
@@ -460,7 +534,7 @@ if __name__ == '__main__':
                 # list_of_vars_for_phase.append(variables_for_this_phase_at_this_tempo)
                 ground_truth_intervs = variables_for_this_phase_at_this_tempo[0] # get all gt intervals
                 # ground_truth_intervs_across_rhythms_flat = sum(ground_truth_intervs_across_rhythms, [])
-                histo_intervals(ground_truth_intervs)
+                # histo_intervals(ground_truth_intervs)
                 # get list of unique intervals and indices that map all intervals to their assigned unique interval
                 unique_gt_intervals, indices = compile_unique_interval_list(ground_truth_intervs, ems_constants.interval_tolerance)
                 # unique_gt_intervals, indices = cluster_intervals(ground_truth_intervs, num_intervals)
@@ -477,7 +551,7 @@ if __name__ == '__main__':
             means.append(interval_means_list)
             sds.append(interval_sd_list)
 
-        fig, axes = plt.subplots(2,2) # change this according to num phase?
+        fig, axes = plt.subplots(2,3) # change this according to num phase?
         fig.suptitle(f"{header_dict['rhythm_strings_names'][rhythm_index]} Wing Kris", fontsize=16)
 
         titles = header_dict['phase_name_strs']
