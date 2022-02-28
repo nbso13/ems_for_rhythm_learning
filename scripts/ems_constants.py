@@ -31,12 +31,12 @@ seguiria = '100010001000001000001000'
 guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
-rhythm_strings = [to_the_beat_substr, random_three,  three_to_four_substr, random_four, syncopated_substr,  random_five] # 
+rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four,  random_five] # 
 
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["to_the_beat_substr", "random_three",  "three_to_four_substr", "random_four","syncopated_substr",  "random_five"] # 
+rhythm_strings_names = ["to_the_beat_substr", "syncopated_substr",  "three_to_four_substr", "random_three", "random_four", "random_five"] # 
 
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
@@ -55,7 +55,7 @@ audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
 phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
-phase_repeats_list = [3, 3, 3, 1, 3] # repeats at each phase
+phase_repeats_list = [5, 3, 5, 1, 3] # repeats at each phase
 phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
@@ -128,6 +128,7 @@ runtime_parameters = {
     "audio_on_flags" : audio_on_flags,
     "ems_on_flags" : ems_on_flags,
     "phase_repeats_list" : phase_repeats_list,
+    "delay_reduction" : delay_reduction,
     "audio_delay" : audio_delay, # but why
     "delay_mode" : delay_mode, # could be contact or key for keyboard p key sensitivity for measuring delay
     # bpm : 120 # beats per minute
