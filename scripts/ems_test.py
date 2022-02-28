@@ -1162,6 +1162,10 @@ if __name__ == '__main__':
             ## write header and data values ##
             write_header_and_data_vals(data_header, arrs_to_write, worksheet, bold)
 
+
+    worksheet = workbook.add_worksheet("likert scale results") 
+    data = input("Likert scale results? scale of 1-7. 1 is no agency 7 is complete agency.")
+    worksheet.write(1, 1, data)
     toc = time.time()
     diff = toc-tic
     print("Time elapsed: " + str(diff))
