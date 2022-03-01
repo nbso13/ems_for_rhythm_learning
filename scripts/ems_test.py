@@ -769,8 +769,8 @@ def initialize_workbook_and_gather_info(measured_delay, delay_std, baseline_mean
     return participant_info_dictionary, workbook, bold
 
 def per_rhythm_check_in(index, tempo_index):
-    if index == np.floor(len(ems_constants.rhythm_strings)/2) and tempo_index == 0:
-        input("You have reached the halfway break. Enter to continue.")
+    if index == np.floor(len(ems_constants.rhythm_strings)/3) or index == np.floor(2*len(ems_constants.rhythm_strings)/3) and tempo_index == 0:
+        input("You have reached the first break. disconnect from the stimulator take 5 minutes to hang out. Enter to continue.")
         input("Ready to continue the testing? Enter to continue")
     else:
         input("Hit enter to continue to the next rhythm presentation.")

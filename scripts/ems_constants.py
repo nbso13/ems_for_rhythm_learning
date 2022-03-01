@@ -6,7 +6,7 @@ import numpy as np
 practice_rhythm = "1000100000100000"
 practice_bpm = 130
 to_the_beat_substr = "1000100010001000"
-lunch_room_beat = "10001000101010001010101000101000"
+lunch_room_beat = "1000100010100010"
 clave_substr = "0010100010010010"
 five_to_four_substr = "10000100001000010000"
 three_to_four_substr = "1001001001001000"
@@ -31,19 +31,19 @@ seguiria = '100010001000001000001000'
 guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
-rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four,  random_five] # 
+rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
 
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["to_the_beat_substr", "syncopated_substr",  "three_to_four_substr", "random_three", "random_four", "random_five"] # 
+rhythm_strings_names = ["to_the_beat_substr", "syncopated_substr",  "three_to_four_substr", "random_three", "random_four", "lunch_room_beat", "random_five"] # 
 
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
-bpms = [105, 90, 150, 120, 135, 165] # shuffled  
+bpms = [100, 160, 140, 120] # shuffled  
 # repeats = 4 # ems and audio period repeats
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
@@ -72,7 +72,7 @@ contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms
-port_contact = '/dev/cu.usbmodem11101'
+port_contact = '/dev/cu.usbmodem1101'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet

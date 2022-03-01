@@ -1,7 +1,4 @@
-from optparse import Values
 import random
-from tempfile import TemporaryDirectory
-from turtle import end_fill
 from numpy.core.fromnumeric import size
 import ems_constants
 import numpy as np

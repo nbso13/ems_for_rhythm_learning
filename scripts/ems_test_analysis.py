@@ -345,8 +345,7 @@ def teaserfigure():
             axes[i].set_yticks([0.5, 1.5])
             axes[i].set_yticklabels(['ground truth \n pattern', 'user produced \n pattern'], fontsize=10)
         axes[i].set_title(titles[i])
-        if i == 1:
-            axes[i].set_xlabel("time")
+        axes[i].set_xlabel("time")
 
 
     
