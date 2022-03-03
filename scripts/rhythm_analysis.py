@@ -247,8 +247,19 @@ if __name__ == '__main__':
         print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
     
     
-    
-    bar_plot_scores(hiers, "Hierarchical model cross entropy scores by rhythm")
+    # MAKE BAR PLOT FIGURE
+    hfont = {'fontname':'Arial'}
+    names = ems_constants.rhythm_strings_names
+    sorted_names = [x for _, x in sorted(zip(hiers, names), reverse=True)]
+    print(sorted_names)
+    fig, ax = plt.subplots()
+    ax.set_yticks(np.arange(len(hiers)))
+    ax.set_yticklabels([])
+    ax.set_title("Complexity score by rhythm", **hfont)
+    ax.set_xlabel("Complexity score (hierarchical cross-entropy and interonset entropy)", **hfont)
+    ax.barh(np.arange(len(hiers)), sorted(hiers, reverse=True), align='center')
+    plt.tight_layout()
+
     bar_plot_scores(leng, "Rhythm Length")
     # bar_plot_scores(pos, "Position model cross entropy scores by rhythm")
     plt.tight_layout()

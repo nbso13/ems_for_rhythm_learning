@@ -117,6 +117,7 @@ def run_rhythm_ems_new(ems_serial, time_naught_thread,  \
     while len(ems_times) > 0 and not(next_stim == 0): #
         time.sleep(update_period_ms/1000)
         if ((time.time() - time_naught_thread)*1000) > next_stim:
+
             ems_serial.write(byt_com)
             stim_onset_times.append(time.time() - time_naught_thread)
             print("stim on")
