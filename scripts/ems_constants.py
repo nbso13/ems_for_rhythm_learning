@@ -61,13 +61,13 @@ num_phases = len(phase_name_strs) # number of phases is number of names of phase
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
 ems_on_flags = [0, 0, 1, 0, 0]
 metronome_intro_flag = 1 # if we want a count in
-samp_period_ms = 2 # milliseconds
+samp_period_ms = 5 # milliseconds
 delay_trial_num = 12 # if measuring delay, this is how many trials we use
 sleep_len_ms = 1000 # seconds of waiting while zeroing sensor
 sd_more_than_mult = 7 # deprecated
 actual_stim_length = 155 # actual stim length
-baseline_subtractor = 15 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
-surpression_window = 250 # ms BACK THIS UP EXPERIMENTALLY?
+baseline_subtractor = 70 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
+surpression_window = 300 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
@@ -79,17 +79,25 @@ worksheet_data_begin_indices = [1, 0] # where empty data space begins in each wo
 verbose_mode = 0
 channel = 0
 read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
+chopping_buffer = 150 # ms, amount of time before first audio pulse and after last audio pulse where contact is recorded.
 cutoff_freq_low = 0.005 # 100 ms longest wave length component before attenuation during high pass filtering
 cutoff_freq_high = 0.1 # 20 ms shortest allowed wave 
 level_zero_probability = 0.891 # Hayden motzart
 distances_to_next_level = [8, 4, 2, 1]
 metrical_position_probabilities = [0.988, 0.092, 0.584, 0.309, 0.842, 0.126, 0.794, 0.313]
+analysis_sample_period = 6 # ms
 anchor_stat = {
     # whole notes, half notes, quarter notes, eighthnotes
     'both_anchored':[np.nan, 0.738, 0.68, 0.576],
     'post_anchored':[np.nan, 0.685, 0.51, 0.359],
     'pre_anchored':[np.nan, 0.525, 0.239, 0.109],
     'not_anchored':[np.nan,  0.5, 0.398, 0.12 ]
+}
+
+counter_balanced_number_dict = {
+    "1" : "actuating-EMS",
+    "2" : "tactile-EMS",
+    "3" : "no-EMS"
 }
 
 

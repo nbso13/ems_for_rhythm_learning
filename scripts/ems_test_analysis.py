@@ -15,6 +15,8 @@ import scipy
 import numpy as np
 import pandas as pd
 from scipy import signal
+import os
+import time
 
 def sine_generator(fs, sinefreq, duration):
     T = duration
@@ -194,27 +196,26 @@ def determine_delays_list(rhythm_substr, bpm, header_dict):
         list_of_delays.append(last_time + header_dict['phase_repeats_list'][i] * len_rhythm_ms) #get the number of repeats and find the length in time in ms and add it on
     return list_of_delays, len_rhythm_ms
         
-def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list):
+def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
     loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
     audio_bool = np.logical_and((audio_onset_times >= loop_begin), (audio_onset_times <= loop_end)) # select audio onset times during this loop of rhythm
     spike_times_contact = surpressed_contact_onset_times[contact_bool] - loop_begin # how many spikes total?
     spike_times_audio = audio_onset_times[audio_bool] - loop_begin
-    trace_selector_bool = np.logical_and((x_vec >= loop_begin), (x_vec <= loop_end)) # which indices in traces are during this loop?
+    trace_selector_bool = np.logical_and((x_values >= loop_begin), (x_values <= loop_end)) # which indices in traces are during this loop?
     contact_trace_selected = surpressed_contact_trace[trace_selector_bool] # pick those data points from suprpressed contact trace
     audio_trace_selected = audio_trace[trace_selector_bool] # pick those data points from audio trace
     return spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool
 
-def load_header():
-    pkl_files = []
-    for file in glob.glob("data/*.pkl"):   
-        if file[0:6] == 'data/2': # starts with the date, so the type of file we want, i.e., 2022_...
-            pkl_files.append(file)
-    pkl_files.sort(reverse=True)
-    with open(pkl_files[0], "rb") as pkl_handle:
-        header_dict = pickle.load(pkl_handle)
-    return header_dict
+def load_headers(file_stems):
+    header_dicts = []
+    for file_stem in file_stems:
+        pkl_file = f"data/{file_stem}_header_info.pkl"
+        with open(pkl_file, "rb") as pkl_handle:
+            header_dict = pickle.load(pkl_handle)
+        header_dicts.append(header_dict)
+    return header_dicts
 
 def histo_intervals(gt_intervals):
     # q25, q75 = np.percentile(gt_intervals, [25, 75])
@@ -227,25 +228,26 @@ def histo_intervals(gt_intervals):
     ax.set_title("interval frequency")
     return
 
-def load_data():
-    xlsxfiles = []
-    for file in glob.glob("data/*.xlsx"):   
-        if file[0:6] == 'data/2': # starts with the date, so the type of file we want, i.e., 2022_...
-            xlsxfiles.append(file)
-    xlsxfiles.sort(reverse=True)
-    # ## open workbook, define worksheets ###
-    wb = load_workbook(xlsxfiles[0]) # most recent participant file
-    return wb
+def load_data(file_stems):
+    vars_and_headers = []
+    for file_stem in file_stems:
+        print(f"loading {file_stem}...")
+        pkl_file = f"data/processed_{file_stem}.pkl"
+        with open(pkl_file, "rb") as pkl_handle:
+            saved_data = pickle.load(pkl_handle)
+        vars_and_headers.append(saved_data)
+        print("done.")
+    return vars_and_headers
 
-def plot_emds(emds_normed, header_dict):
-    mean_distances = np.mean(np.vstack(emds_normed), 0)
-    sd_distances = np.std(np.vstack(emds_normed), 0)
+def plot_emds(emds, header_dict, rhyth_index):
+    mean_distances = np.mean(np.vstack(emds), 0)
+    sd_distances = np.std(np.vstack(emds), 0)
     fig, ax = plt.subplots() # change this according to num phase?
     legend_labels = ["earth mover's distances mean", "std+", "std-"]
     ax.plot(np.arange(len(mean_distances)), mean_distances,'b')
     ax.plot(np.arange(len(mean_distances)), mean_distances+sd_distances, 'r')
     ax.plot(np.arange(len(mean_distances)), mean_distances-sd_distances, 'r')
-    ax.set_title(f"mean normalized earth mover's distance across bpms for each phase, {header_dict['rhythm_strings_names'][rhythm_index]}")
+    ax.set_title(f"mean earth mover's distance across bpms for each phase, {header_dict['rhythm_strings_names'][rhyth_index]}")
     ax.legend(legend_labels)
     plt.ion()
     plt.show()
@@ -412,9 +414,10 @@ def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
 
 def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times):
     var_lists = []
-    for k in range(header_dict['num_phases']):
+    for k in range(header_dict['num_phases']): # for every phase
         # array of 1s for audio onset times in this phase
         this_phase_bools = np.logical_and((audio_onset_times > delays_list[k]), (audio_onset_times < delays_list[k+1])) 
+        #contact trace selection
         this_phase_cont_bools = np.logical_and((surpressed_contact_onset_times > delays_list[k]), (surpressed_contact_onset_times < delays_list[k+1]))
         # get those onset times
         phase_audio_onsets = audio_onset_times[this_phase_bools]
@@ -447,17 +450,29 @@ def surpress(audio_trace, surpressed_contact_trace):
             surpressed_contact_trace[j+1] = 0
     return surpressed_contact_trace, audio_trace
 
-def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list):
+def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
     distances_list = []
     for k in range(len(delays_list)-1): # for each phase
         spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(k, \
-            surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list)
+            surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values)
         emd = earth_movers_distance(spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected) # run emd
         distances_list.append(emd) # add to appropriate list.
         title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
         # if count == 2:
             # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
     return np.array(distances_list)
+
+
+def bar_plot_scores(names, scores, errors, title, ylabel):
+    fig, ax = plt.subplots()
+    ax.set_xticks(np.arange(len(scores)))
+    ax.set_xticklabels(names)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    plt.xticks(rotation=45, ha="right")
+    ax.bar(np.arange(len(scores)), scores, yerr=errors, align='center')
+    plt.tight_layout()
+
 
 # def cluster_intervals(num_intervals, gt_intervals)
 # _____________________________________________________
@@ -467,154 +482,257 @@ if __name__ == '__main__':
 
     plt.style.use('ggplot')
 
-    teaserfigure()
+    # teaserfigure()
 
     ### run tests ###
     # emd_tests()
     # filter_test()
 
-    ### load header
-    header_dict = load_header()
+
+    file_stems = ['2022_03_01_18_31_28_pp3', '2022_03_02_16_36_39_pp3', '2022_03_03_17_19_34_pp3']
+
 
     ### load data ###
-    wb = load_data()
+    print("Loading data...")
+    t1 = time.time()
+    variable_lists_and_headers = load_data(file_stems)
+    end = time.time() - t1
+    print("Data loaded. time taken: " + str(end))
 
-    # xlsx parser does not do 0-start counting
-    worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices" ]]
-    variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
+    vector_of_improvement_matrices = []
 
-    count = 0
-    all_emds_normed = []
-    # doing analyses FOR EACH RHYTHM separately.
-    rhythm_strings = header_dict['rhythm_strings']
-    for rhythm_index in range(len(rhythm_strings)): # for each string
-        rhythm_substr = rhythm_strings[rhythm_index]
-        count = count + 1
+    first_performances = [] # organizing the performance on the first tests to see if learning effect
 
-        list_of_WK_var_lists_by_bpm = []
-        list_of_var_lists_by_bpm = []
-        list_of_emd_distances_by_bpm = []
-        list_of_vp_distances_by_bpm = []
-        emds_normed = []
+    conditions = []
+    for session_number in range(len(variable_lists_and_headers)):
 
-        bpms = header_dict['bpms'] # for each bpm
-        for bpm_index in range(len(bpms)):
-            bpm = bpms[bpm_index]
-            worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}_bpm{bpm}"]
-            time_readings_length = count_time_readings(worksheet)
+        header_dict = variable_lists_and_headers[session_number][1]
+        var_lists = variable_lists_and_headers[session_number][0]
 
-            ## make the appropriate size data array and read in values.
-            contact_x_values, reading_list, stim_onset_times, audio_onset_times = read_array_values(time_readings_length, variables_number, worksheet)
-            cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
-            cutoff_freq_high = ems_constants.cutoff_freq_high
-            contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, header_dict['samp_period_ms'])
-            reading_list_filtered = butter_band_pass_filter(contact_x_interped, reading_list_interped, cutoff_freq_low, cutoff_freq_high, header_dict['samp_period_ms'], plot_flag=0)
-            
-            ## preprocessing
-            audio_hold = 30000/bpm 
-            x_vec = contact_x_interped
-            stim_trace = spike_times_to_traces(stim_onset_times, header_dict['actual_stim_length'], x_vec, header_dict['samp_period_ms'])
-            audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, header_dict['samp_period_ms'])
+        # pull experimental condition string
+        condition = ems_constants.counter_balanced_number_dict[header_dict["counter-balanced-number"]]
+        conditions.append(condition)
+        # xlsx parser does not do 0-start counting
+        worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices" ]]
+        variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
 
-            surpressed_contact_onset_times = process_contact_trace_to_hit_times(reading_list_filtered, contact_x_interped, ems_constants.baseline_subtractor, ems_constants.surpression_window)
-            surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, x_vec, header_dict['samp_period_ms'])
+        count = 0
 
-            var_list = [contact_x_values, reading_list, stim_onset_times, audio_onset_times, x_vec, stim_trace, audio_trace, surpressed_contact_onset_times, surpressed_contact_trace]
-            list_of_var_lists_by_bpm.append(var_list)
-            
-            delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
-            
-            repeat_list = header_dict['phase_repeats_list']
+        all_emds = []
 
-            surpressed_contact_trace, audio_trace = surpress()
 
-            distances_array = emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list)
-            dist_array = np.copy(distances_array)
+        first_performance = []
+        first_performances.append(first_performance)
 
-            # what is this doing???
-            dist_array[dist_array == -1] = max(dist_array)
+        repeat_list = header_dict['phase_repeats_list']
         
-            list_of_emd_distances_by_bpm.append(dist_array)
-            # fig, ax = plt.subplots()
-            # label_list = ["EMD", "VPD"]
-            # normalize EMD
+        improvement_index_matrix = [] #first dimension, rhythm, second, bpm, third, test_val (0, before, 1, after)
 
-            distances_array = np.divide(distances_array, np.max(distances_array))
-            emds_normed.append(distances_array)
+        processed_vars_by_rhythm = []
 
-            # get intervals in this rhythm
-            var_lists = get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times)
-            list_of_WK_var_lists_by_bpm.append(var_lists)
+        # doing analyses FOR EACH RHYTHM separately.
+
+        rhythm_strings = header_dict['rhythm_strings']
+        for rhythm_index in range(len(rhythm_strings)): # for each string
+            rhythm_substr = rhythm_strings[rhythm_index]
+            count = count + 1
+
+            list_of_WK_var_lists_by_bpm = []
+
+            processed_var_lists_by_bpm = []
+            processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
+
+            emds = []
+
+            improvement_vector = []
+            improvement_index_matrix.append(improvement_vector)
+
+
+            bpms = header_dict['bpms'] # for each bpm
+            for bpm_index in range(len(bpms)):
+                bpm = bpms[bpm_index]
+
+                # pull vars from list
+                contact_x_interped, reading_list_interped, \
+                    surpressed_contact_trace, surpressed_contact_onset_times, stim_onset_times, \
+                    audio_onset_times, stim_trace, audio_trace = var_lists[rhythm_index][bpm_index]
+
+                audio_hold = 30000/bpm 
+                first_audio = audio_onset_times[0]
+                last_audio = audio_onset_times[-1]
+                # EXAMINE DATA
+
+                # interpolated
+                # legend_labels = ['contact', 'stim', 'audio']
+                # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
+                # view_window_begin = 40000
+                # view_window_end = -1
+                # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \
+                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+
+                #examine spiking
+                # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
+                # plot_contact_trace_and_rhythm(surpressed_contact_trace[view_window_begin:view_window_end], \
+                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+
+                delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
+                
+                ## check delays markers
+                # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \
+                #     x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
+                # ax = plt.gca()
+                # ax.scatter(delays_list, np.ones_like(delays_list), s=20)
+
+                # check stim accuracy
+                # if bpm_index == 0:
+                #     x_vec_array = np.array(x_vec)
+                #     bool_selector = np.logical_and((x_vec_array > delays_list[2]), (x_vec_array < delays_list[3]))
+                #     title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check raw trace"
+                #     plot_contact_trace_and_rhythm(reading_list_interped[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+                #         x_vec[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
+                #     title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check spikes"
+                #     plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+                #         x_vec[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
+
+                distances_array = emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values=contact_x_interped)
+                dist_array = np.copy(distances_array)
+
+                improvement_score = [dist_array[1], dist_array[4]] # test before test after. If value is positive, distance was shorter later and improved. If neg, got worse. 
+                improvement_vector.append(improvement_score)
+
+                first_performance.append(dist_array[2])
+                # fig, ax = plt.subplots()
+                # label_list = ["EMD", "VPD"]
+                # normalize EMD
+
+                # distances_array = np.divide(distances_array, np.max(distances_array)) why would we norm?
+                emds.append(distances_array)
+
+                # get intervals in this rhythm
+                wk_var_lists = get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times)
+                list_of_WK_var_lists_by_bpm.append(wk_var_lists)
+                
+
+            #______________________________________#
+            ###### END OF PER TRIAL ANALYSIS ####### (still per rhythm)
+
+            # all_emds = all_emds + emds
+            # plot_emds(emds, header_dict, rhythm_index)
             
+            print("done")
 
-        #______________________________________#
-        ###### END OF PER TRIAL ANALYSIS ####### (still per rhythm)
+        vector_of_improvement_matrices.append(improvement_index_matrix)
+        differences = [item[0]-item[1] for sublist in improvement_index_matrix for item in sublist]
+        print(f"mean improvement: {np.mean(differences)} +/- {np.std(differences)}")
 
-        all_emds_normed = all_emds_normed + emds_normed
-        # plot_emds(emds_normed, header_dict)
+        names = header_dict['rhythm_strings_names']
+        scores = []
+        errors = []
+        for improvement_vec in improvement_index_matrix:
+            # for every rhythm, add to the scores vector the mean of, for every index in the improvement vector,
+            scores.append(np.mean([i[0] - i[1] for i in improvement_vec]))
+            errors.append(np.std([i[0] - i[1] for i in improvement_vec]))
+        title = f"EMD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {np.mean(differences)} +/- {np.std(differences)}"
+        ylabel = "Baseline test EMD - post-test EMD"
+        bar_plot_scores(names, scores, errors, title, ylabel)
 
-        print("done")
-
-
-        # organize intervals
-
-        intervs, unique_intervals, num_unique = count_intervals(header_dict['rhythm_strings'][rhythm_index]) 
-
-        means = []
-        sds = []
-        # wing kris across bpms for each phase
-        for i in range(header_dict['num_phases']): # for each phase
-            # list_of_vars_for_phase = [] # first dim, num bpms long. second dim, phase, third, ground truth, user, user_error.
-            interval_means_list = []
-            interval_sd_list = []
-            for j in range(len(header_dict['bpms'])): # grab the data for this phase at each tempo
-                variables_for_this_phase_at_this_tempo = list_of_WK_var_lists_by_bpm[j][i]
-                # list_of_vars_for_phase.append(variables_for_this_phase_at_this_tempo)
-                ground_truth_intervs = variables_for_this_phase_at_this_tempo[0] # get all gt intervals
-                # ground_truth_intervs_across_rhythms_flat = sum(ground_truth_intervs_across_rhythms, [])
-                # histo_intervals(ground_truth_intervs)
-                # get list of unique intervals and indices that map all intervals to their assigned unique interval
-                unique_gt_intervals, indices = compile_unique_interval_list(ground_truth_intervs, ems_constants.interval_tolerance)
-                # unique_gt_intervals, indices = cluster_intervals(ground_truth_intervs, num_intervals)
-                user_intervals_across_rhythms = variables_for_this_phase_at_this_tempo[1] # get all user intervasl
-                # user_intervals_across_rhythms_flat = sum(user_intervals_across_rhythms, [])
-                list_of_user_intervals_by_target_interval = [[] for _ in range(len(unique_gt_intervals))] # make a list of lists as long as unique intervals
-                for k in range(len(user_intervals_across_rhythms)): # for every user interval
-                    target_interval_index = indices[k] # find its unique target 
-                    # now add it to the list of intervals produced for that target
-                    # within the list of unique intervals
-                    list_of_user_intervals_by_target_interval[target_interval_index].append(user_intervals_across_rhythms[k])
-                interval_means_list = interval_means_list + [np.nanmean(np.array(item_list)) for item_list in list_of_user_intervals_by_target_interval]
-                interval_sd_list = interval_sd_list + [np.nanstd(np.array(item_list)) for item_list in list_of_user_intervals_by_target_interval]
-            means.append(interval_means_list)
-            sds.append(interval_sd_list)
-
-        fig, axes = plt.subplots(2,3) # change this according to num phase?
-        fig.suptitle(f"{header_dict['rhythm_strings_names'][rhythm_index]} Wing Kris", fontsize=16)
-
-        titles = header_dict['phase_name_strs']
-        slopes, intercepts, r_values, p_values = plot_w_k(axes, means, sds, titles)
-
-            
+        for i in range(len(improvement_index_matrix)):
+            improvements_vec = improvement_index_matrix[i]
+            rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
+            name = header_dict['rhythm_strings_names'][i]
+            meann = np.mean(rhythm_improvements_vec)
+            stdd = np.std(rhythm_improvements_vec)
+            print(name + f", improvement: {meann}, +/- {stdd}")
 
 
-        fig, ax = plt.subplots() # change this according to num phase?
-        legend_labels = ["clock var", "motor var"]
-        ax.plot(np.arange(len(slopes)), slopes/max(slopes))
-        ax.plot(np.arange(len(intercepts)), intercepts/max(intercepts))
-        ax.set_title(header_dict['rhythm_strings_names'][rhythm_index])
-        ax.legend(legend_labels)
+        for i in range(len(improvement_index_matrix[0])):
+            improvements_vec = improvement_index_matrix[:][i]
+            rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
+            name = str(header_dict['bpms'][i])
+            meann = np.mean(rhythm_improvements_vec)
+            stdd = np.std(rhythm_improvements_vec)
+            print(name + f", improvement: {meann}, +/- {stdd}")
 
-        ax.set_title("normalized variances for clock and motor across epochs")
-        plt.ion()
-        plt.show()
-        plt.draw()
-        plt.pause(0.01)
-    plot_emds(all_emds_normed, header_dict)
+
+    perf_array = np.array(first_performances)
+    means_first_perf = np.mean(first_performances, axis=1)
+    stds_first_perf = np.std(first_performances, axis=1)
+
+    plt.figure()
+    fig, ax = plt.subplots()
+    ax.scatter(np.arange(len(means_first_perf)), means_first_perf )
+    ax.errorbar(np.arange(len(means_first_perf)), means_first_perf, yerr = stds_first_perf) 
+    ax.set_title("EMD over first performance for each condition")
+    ax.set_xticks(np.arange(len(means_first_perf)))
+    ax.set_xticklabels(conditions)
+    ax.set_ylabel("EMD")
+    ax.set_xlabel("experimental condition")
+
+
     print("done")
+        # organize intervals
+        # intervs, unique_intervals, num_unique = count_intervals(header_dict['rhythm_strings'][rhythm_index]) 
+        # means = []
+        # sds = []
+        # # wing kris across bpms for each phase
+        # for i in range(header_dict['num_phases']): # for each phase
+        #     # list_of_vars_for_phase = [] # first dim, num bpms long. second dim, phase, third, ground truth, user, user_error.
+        #     interval_means_list = []
+        #     interval_sd_list = []
+        #     for j in range(len(header_dict['bpms'])): # grab the data for this phase at each tempo
+        #         variables_for_this_phase_at_this_tempo = list_of_WK_var_lists_by_bpm[j][i]
+        #         # list_of_vars_for_phase.append(variables_for_this_phase_at_this_tempo)
+        #         ground_truth_intervs = variables_for_this_phase_at_this_tempo[0] # get all gt intervals
+        #         # ground_truth_intervs_across_rhythms_flat = sum(ground_truth_intervs_across_rhythms, [])
+        #         # histo_intervals(ground_truth_intervs)
+        #         # get list of unique intervals and indices that map all intervals to their assigned unique interval
+        #         unique_gt_intervals, indices = compile_unique_interval_list(ground_truth_intervs, ems_constants.interval_tolerance)
+        #         # unique_gt_intervals, indices = cluster_intervals(ground_truth_intervs, num_intervals)
+        #         user_intervals_across_rhythms = variables_for_this_phase_at_this_tempo[1] # get all user intervasl
+        #         # user_intervals_across_rhythms_flat = sum(user_intervals_across_rhythms, [])
+        #         list_of_user_intervals_by_target_interval = [[] for _ in range(len(unique_gt_intervals))] # make a list of lists as long as unique intervals
+        #         for k in range(len(user_intervals_across_rhythms)): # for every user interval
+        #             target_interval_index = indices[k] # find its unique target 
+        #             # now add it to the list of intervals produced for that target
+        #             # within the list of unique intervals
+        #             list_of_user_intervals_by_target_interval[target_interval_index].append(user_intervals_across_rhythms[k])
+        #         interval_means_list = interval_means_list + [np.nanmean(np.array(item_list)) for item_list in list_of_user_intervals_by_target_interval]
+        #         interval_sd_list = interval_sd_list + [np.nanstd(np.array(item_list)) for item_list in list_of_user_intervals_by_target_interval]
+        #     means.append(interval_means_list)
+        #     sds.append(interval_sd_list)
 
+        # fig, axes = plt.subplots(2,3) # change this according to num phase?
+        # fig.suptitle(f"{header_dict['rhythm_strings_names'][rhythm_index]} Wing Kris", fontsize=16)
+
+        # titles = header_dict['phase_name_strs']
+        # slopes, intercepts, r_values, p_values = plot_w_k(axes, means, sds, titles)
+
+            
+
+
+        # fig, ax = plt.subplots() # change this according to num phase?
+        # legend_labels = ["clock var", "motor var"]
+        # ax.plot(np.arange(len(slopes)), slopes/max(slopes))
+        # ax.plot(np.arange(len(intercepts)), intercepts/max(intercepts))
+        # ax.set_title(header_dict['rhythm_strings_names'][rhythm_index])
+        # ax.legend(legend_labels)
+
+        # ax.set_title("normalized variances for clock and motor across epochs")
+        # plt.ion()
+        # plt.show()
+        # plt.draw()
+        # plt.pause(0.01)
+   
 
 #notes
+
+# turn off graphs
+
+# pull emds for test phases and graph across each tempo and each rhythm.
+
+
 
 # stop graphing vp_dist
 

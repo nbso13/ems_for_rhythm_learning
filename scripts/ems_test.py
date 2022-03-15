@@ -418,8 +418,6 @@ def rhythm_string_to_stim_trace_and_audio_trace(count_in_substr, rhythm_substr, 
 def plot_contact_trace_and_rhythm(reading_list, contact_x_values, stim_trace, audio_trace, x_array, samp_period, legend_labels, input_title):
     fig, ax = plt.subplots()
     ax.plot(contact_x_values, reading_list)
-    ax.set_yticks(np.arange(0, 500, 100))
-    ax.set_xticks(np.arange(0, (len(reading_list) * samp_period), 10000))
     ax.set_title(input_title)
     ax.plot(x_array, stim_trace*np.max(reading_list))
     ax.plot(x_array, audio_trace*np.max(reading_list))
