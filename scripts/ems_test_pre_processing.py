@@ -64,6 +64,8 @@ def spike_times_to_traces(onset_times, hold_length, x_vector, samp_period):
     # take a series of onset time points and craft plottable traces.
     ### XVECTOR SHOULD HAVE PERIOD OF SAMP PERIOD
     array_value_stim_time = int(np.floor(hold_length/samp_period))
+    if array_value_stim_time < 2:
+        array_value_stim_time = 2
     trace = np.zeros_like(x_vector)
     for time_val in onset_times: # for each onset time
         array_ind_begin = int(np.floor((time_val-x_vector[0])/samp_period)) 
@@ -558,7 +560,7 @@ if __name__ == '__main__':
                 # take off onset times that are before or after stim plus or minus 150 ms
                 surpressed_contact_onset_times = np.array([time for time in surpressed_contact_onset_times_not_chopped if (time > first_audio-ems_constants.chopping_buffer and time < last_audio+ ems_constants.chopping_buffer)])
                 # get the plottable trace for that 
-                surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, x_vec, ems_constants.analysis_sample_period)
+                surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, contact_x_interped, ems_constants.analysis_sample_period)
 
                 surpressed_contact_trace, audio_trace = surpress(audio_trace, surpressed_contact_trace)
 
@@ -569,8 +571,17 @@ if __name__ == '__main__':
                 #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
 
-                var_list = [contact_x_interped, reading_list_interped, surpressed_contact_trace, surpressed_contact_onset_times, stim_onset_times, audio_onset_times, stim_trace, audio_trace]
-                processed_var_lists_by_bpm.append(var_list)
+                var_dict = {
+                    "contact_x_interped" : contact_x_interped, 
+                    "reading_list_interped" : reading_list_interped, 
+                    "surpressed_contact_trace" : surpressed_contact_trace, 
+                    "surpressed_contact_onset_times" : surpressed_contact_onset_times, 
+                    "stim_onset_times" : stim_onset_times, 
+                    "audio_onset_times" : audio_onset_times, 
+                    "stim_trace" : stim_trace, 
+                    "audio_trace" : audio_trace
+                }
+                processed_var_lists_by_bpm.append(var_dict)
                 delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
                 
                 ## check delays markers
@@ -592,6 +603,10 @@ if __name__ == '__main__':
             
 
         print(f"dumping {file_stems[session_number]}.")
-        processed_vars_by_rhythm_and_header_dict = [processed_vars_by_rhythm, header_dict]
+        processed_vars_dict = {
+            "read_me" : "this dictionary contains the vars_by_rhythm_and_bpm variable which is a list of lists of dictionaries. The first list is by rhythm, the second by bpm. dictionaries contain preprocessed variables for tapping performance and ground truth. header_dict contains metadata such as the rhythms and bpms and participant and time of trial.",
+            "vars_by_rhythm_and_bpm" : processed_vars_by_rhythm,
+            "header_dict" : header_dict
+        }
         with open(f"data/processed_{file_stems[session_number]}.pkl", "wb") as pkl_handle:
-            pickle.dump(processed_vars_by_rhythm_and_header_dict, pkl_handle)
+            pickle.dump(processed_vars_dict, pkl_handle)

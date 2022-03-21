@@ -1,3 +1,26 @@
+#### TO DO
+
+# Implement sound feedback and make small video for lewis
+# make graphs for slideshow
+    # video of sound feedback
+    # teams graph for display improvement preceision
+    # include feedback from reviewer in slideshow from IMI
+    # include planned schedule
+    # bar plots on learning by rhythm from yannik trial
+    # mean EMD at each condition for initial performance training from yannik trial
+    # mean EMD for initial testing
+    # mean EMD for experimental condition -- oh no -- EMS doesn't help??
+    # zoom in on data - off by a bit. goddamn.
+    # other metric - variability of interval reproduction -- mean fano factor for all reproduced intervals?
+        # learning?
+        # initial performance?
+    # hypothesize as to why it didn't work
+
+
+
+# Implement including the ORDER of the presentation of the tempos, rotating given tempos
+# plot those first improvements on only the first tempo display
+# examine first performance correlation with rhythm difficulty
 
 import warnings
 import pickle
@@ -17,7 +40,10 @@ import pandas as pd
 from scipy import signal
 import os
 import time
+from math import log10, floor
 
+def round_sig(x, sig=2):
+    return round(x, sig-int(floor(log10(abs(x))))-1)
 def sine_generator(fs, sinefreq, duration):
     T = duration
     nsamples = fs * T
@@ -157,30 +183,6 @@ def compile_unique_interval_list(intervals, tolerance):
             indices.append(len(unique_interval_list) - 1)
     return unique_interval_list, indices
 
-def count_time_readings(worksheet):
-## how many time readings are there?
-    counter = 0
-    val = 1.0
-    while type(val) is float or type(val) is int: #while we're reading floats and not nans
-        val = worksheet.cell(row=counter + worksheet_data_begin_indices[0], column=1).value
-        counter = counter+1
-    time_readings_length = counter-2
-    return time_readings_length
-
-def read_array_values(time_readings_length, variables_number, worksheet):
-    arr = np.empty([time_readings_length, variables_number]) 
-    arr[:] = np.NaN
-    for r in range(time_readings_length):
-        for c in range(variables_number):
-            arr[r][c] = worksheet.cell(row=r + worksheet_data_begin_indices[0], column=c + worksheet_data_begin_indices[1]).value
-    contact_x_values = arr[:, 0]
-    reading_list = arr[:, 1]
-    stim_onsets_temp = arr[:, 2]
-    stim_onset_times = stim_onsets_temp[~np.isnan(stim_onsets_temp)] # take care of nans that make array work
-    audio_onsets_temp = arr[:, 3]
-    audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
-    return contact_x_values, reading_list, stim_onset_times, audio_onset_times
-
 def determine_delays_list(rhythm_substr, bpm, header_dict):
     # determine the exact beginning timestamp (delays_list) for each phase (pre-ems audio, ems, post-ems audio, no audio)
     len_rhythm_ms = len(rhythm_substr) * 30000/bpm #+ 75 ### tHIS IS SOMEHOW OFF BU ABOUT 75 MS?????
@@ -196,7 +198,7 @@ def determine_delays_list(rhythm_substr, bpm, header_dict):
         list_of_delays.append(last_time + header_dict['phase_repeats_list'][i] * len_rhythm_ms) #get the number of repeats and find the length in time in ms and add it on
     return list_of_delays, len_rhythm_ms
         
-def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
+def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
     loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
@@ -207,6 +209,15 @@ def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, aud
     contact_trace_selected = surpressed_contact_trace[trace_selector_bool] # pick those data points from suprpressed contact trace
     audio_trace_selected = audio_trace[trace_selector_bool] # pick those data points from audio trace
     return spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool
+
+def chop_onsets(k, contact_times, audio_times, delays_list, bpm):
+    loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
+    loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
+    contact_bool = np.logical_and((contact_times >= loop_begin), (contact_times <= loop_end)) # select contact onset times during this loop of rhythm
+    audio_bool = np.logical_and((audio_times >= loop_begin), (audio_times <= loop_end)) # select audio onset times during this loop of rhythm
+    spike_times_contact = contact_times[contact_bool] - loop_begin # how many spikes total?
+    spike_times_audio = audio_times[audio_bool] - loop_begin
+    return spike_times_contact, spike_times_audio, 
 
 def load_headers(file_stems):
     header_dicts = []
@@ -268,6 +279,7 @@ def count_intervals(rhyth_string):
         if rhyth_string[i] == '0':
             zero_counter += 1 # add to interval
         if rhyth_string[i] == '1':
+            zero_counter += 1 # add to interval
             intervs.append(zero_counter) # save interval
             zero_counter = 0 # reset counter
     if zero_counter == len(rhyth_string): # no intervals, empty string
@@ -280,14 +292,73 @@ def count_intervals(rhyth_string):
     return intervs, unique_intervals, num_unique
     
 
-def emd_test(title, times_a, times_b, mini, maxi, samp_period):
+def get_scaled_asynchronies_by_interval_by_phase(rhythm_string, bpm, phase_change_times, audio_onset_times, contact_onset_times):
+    # get unique intervals in this rhythm
+    _, unique_intervals, num_unique  = count_intervals(rhythm_string)
+    ms_per_eighthnote = 30000/bpm
+    unique_intervals_ms = [i*ms_per_eighthnote for i in unique_intervals]
+    # make a 3d matrix: first dim, phase, second interval.  third, user performance instance.
+    user_performance_matrix = [[[] for i in range(num_unique)] for j in range(len(phase_change_times)-1)]
+
+    for i in range(len(phase_change_times)-1): # for every phase
+        # get the audio and the contact times in that phase
+        contact_times_chopped, audio_times_chopped = chop_onsets(i, contact_onset_times, audio_onset_times, phase_change_times, bpm)
+        # get the ground truth intervals and the user produced intervals in that phase
+        ground_truth_intervals, user_intervals = accumulate_intervals(audio_times_chopped, contact_times_chopped)
+        for j in range(len(ground_truth_intervals)): # for every ground truth interval
+            # get the closest unique interval
+            index = np.argmin(np.abs(unique_intervals_ms - ground_truth_intervals[j]))
+            # if difference between unique interval in the rhythm and the ground truth interval is more than 10% of ground truth interval that's weird. throw an error.
+            if ((unique_intervals_ms[index] - ground_truth_intervals[j])/unique_intervals_ms[index]) > 0.1:
+                warnings.warn("difference between measured ground truth interval and known unique interval is more than 10%??")
+
+            # calculate scaled (normalized) asnychrony as a signed fraction of the ground truth interval. If -0.1, user was 10% too soon.
+            else:
+                scaled_asynchrony = (user_intervals[j] - ground_truth_intervals[j])/ground_truth_intervals[j]
+                user_performance_matrix[i][index].append(scaled_asynchrony) # append to correct list (first index, which phase, second index, which interval.)
+
+    return user_performance_matrix, unique_intervals_ms
+
+
+def mad_vad(times_a, times_b, unique_intervals):
+    # make a 2d matrix: first dim,  interval. second, user performance instance.
+    user_performance_matrix = [[] for i in range(len(unique_intervals))]
+
+    # get the ground truth intervals and the user produced intervals in that phase
+    ground_truth_intervals, user_intervals = accumulate_intervals(times_a, times_b)
+    for j in range(len(ground_truth_intervals)): # for every ground truth interval
+        # get the closest unique interval
+        index = np.argmin(np.abs(np.array(unique_intervals)- ground_truth_intervals[j]))
+        # if difference between unique interval in the rhythm and the ground truth interval is more than 10% of ground truth interval that's weird. throw an error.
+        if ((unique_intervals[index] - ground_truth_intervals[j])/unique_intervals[index]) > 0.1:
+            warnings.warn("difference between measured ground truth interval and known unique interval is more than 10%??")
+        # calculate scaled (normalized) asnychrony as a signed fraction of the ground truth interval. If -0.1, user was 10% too soon.
+        else:
+            scaled_asynchrony = (user_intervals[j] - ground_truth_intervals[j])/ground_truth_intervals[j]
+            user_performance_matrix[index].append(scaled_asynchrony) # append to correct list (first index, which phase, second index, which interval.)
+
+    MAD_across_intervals = []
+    VAD_across_intervals = []
+    for i in range(len(user_performance_matrix)):
+        asynchs_by_interval = user_performance_matrix[i]
+        MAD_across_intervals.append(np.mean(np.abs(asynchs_by_interval)))
+        VAD_across_intervals.append(np.std(asynchs_by_interval))
+    
+    return MAD_across_intervals, VAD_across_intervals
+
+
+def emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_intervals):
     xvec = np.arange(mini, maxi, samp_period)
     trace_a = spike_times_to_traces(times_a, samp_period, xvec, samp_period)
     trace_b = spike_times_to_traces(times_b, samp_period, xvec, samp_period)
     emd = earth_movers_distance(times_a, times_b, trace_a, trace_b)
-    title = title + f", emd = {emd}"
+    mad, vad = mad_vad(times_a, times_b, unique_intervals)
+    mad_mean = np.mean(mad)
+    vad_mean = np.mean(vad)
+    title = title + f", emd = {round_sig(emd, 3)}, \n mad = {round_sig(mad_mean, 3)}, \n vad = {round_sig(vad_mean, 3)}"
     plot_traces(xvec, [trace_a, trace_b], samp_period, ["a", "b"], title)
-    return emd
+    plt.tight_layout()
+    return emd, mad, vad
 
 def filter_test():
     fps = 30
@@ -378,18 +449,34 @@ def emd_tests():
             [1.1, 2.1, 3.1, 3.5, 4.1, 4.5, 5.1 ], [1.1, 2.1, 3.1, 4.1, 4.9, 5.1], [1.1, 2.1, 3.1, 3.2, 4.1, 5.1]]
 
     emds = []
+    MADs = []
+    VADs = []
+    unique_intervals = [1]
     for i in range(len(times_bs)):
         times_b = times_bs[i]
         title = titles[i]
-        emds.append(emd_test(title, times_a, times_b, mini, maxi, samp_period))
+        emd, MAD, VAD = emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_intervals)
+        emds.append(emd)
+        
+        MADs.append(MAD[0])
+        VADs.append(VAD[0])
 
-    fig, ax = plt.subplots()
-    ax.set_xticks(np.arange(len(titles)))
-    ax.set_xticklabels(titles)
-    ax.set_title("Bar plot for EMDS across tests")
-    ax.set_ylabel("EMD")
+    fig, axes = plt.subplots(3,1)
+    axes[0].set_title("Bar plot for EMDS across tests")
+    axes[0].set_ylabel("EMD")
+    axes[0].bar(np.arange(len(titles)), emds, align='center')
+
+    axes[1].set_title("Bar plot for MADs across tests")
+    axes[1].set_ylabel("MAD")
+    axes[1].bar(np.arange(len(titles)), MADs, align='center')
+
+    axes[2].set_xticks(np.arange(len(titles)))
+    axes[2].set_xticklabels(titles)
+    axes[2].set_title("Bar plot for VADs across tests")
+    axes[2].set_ylabel("VAD")
     plt.xticks(rotation=30, ha="right")
-    ax.bar(np.arange(len(titles)), emds, align='center')
+    axes[2].bar(np.arange(len(titles)), VADs, align='center')
+    plt.tight_layout()
     return 
 
 
@@ -400,17 +487,20 @@ def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
     for j in range(len(phase_audio_onsets)-1):
         # get the interval between them
         gt_interval = phase_audio_onsets[j+1] - phase_audio_onsets[j]
-        # get the index of the nearest response pulse to the j+1 audio
-        arg_min = np.argmin(np.abs(np.subtract(surpressed_contact_onset_times, phase_audio_onsets[j+1]))) # throws out the first one...
-        # get the user interval
-        user_interval = surpressed_contact_onset_times[arg_min] - phase_audio_onsets[j]#response time user - previous audio pulse
-        if user_interval <= 0:
-            user_interval = np.nan
-            # raise ValueError("user interval less than 0")
-        ground_truth_intervals.append(gt_interval)
-        user_intervals.append(user_interval)
-        user_error.append(np.abs(gt_interval-user_interval))
-    return ground_truth_intervals, user_intervals, user_error
+        # get the index of the nearest response pulse to the j+1 audio that is more than buffer ms after the earlier audio.
+        if type(surpressed_contact_onset_times) == list:
+            surpressed_contact_onset_times = np.array(surpressed_contact_onset_times)
+        contact_onset_times_after = surpressed_contact_onset_times[surpressed_contact_onset_times >  phase_audio_onsets[j]]
+        if len(contact_onset_times_after) == 0: # If no contacts after audio, skip this audio.
+            # raise ValueError("no contacts after this audio!")
+            warnings.warn(f'no contact after audio.')
+        else:
+            arg_min = np.argmin(np.abs(np.subtract(contact_onset_times_after, phase_audio_onsets[j+1]))) # throws out the first one...
+            # get the user interval
+            user_interval = contact_onset_times_after[arg_min] - phase_audio_onsets[j]#response time user - previous audio pulse
+            ground_truth_intervals.append(gt_interval)
+            user_intervals.append(user_interval)
+    return ground_truth_intervals, user_intervals
 
 def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times):
     var_lists = []
@@ -432,29 +522,28 @@ def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_co
         # plot_traces(xvec, [audio_trace, contact_trace], header_dict['samp_period_ms'], labels, title)
 
         # for each onset time
-        ground_truth_intervals, user_intervals, user_error = accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times)
-        var_list = [ground_truth_intervals, user_intervals, user_error]
+        ground_truth_intervals, user_intervals, = accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times)
+        var_list = [ground_truth_intervals, user_intervals]
         var_lists.append(var_list) # now has each WK relevant variable for each phase
     return var_lists
 
-def surpress(audio_trace, surpressed_contact_trace):
-# change to pure spikes (complete surround surpression)
-    audio_trace_copy = np.copy(audio_trace)
-    for j in range(len(audio_trace)-1):
-        if audio_trace_copy[j] == 1:
-            audio_trace[j+1] = 0
-    
-    contact_trace_copy = np.copy(surpressed_contact_trace)
-    for j in range(len(surpressed_contact_trace)-1):
-        if contact_trace_copy[j] == 1:
-            surpressed_contact_trace[j+1] = 0
-    return surpressed_contact_trace, audio_trace
+def MAD_VAD_per_phase_calc(rhythm, bpm, phase_change_times, audio_onset_times, contact_onset_times):
+    user_performance_matrix, unique_intervals_ms = get_scaled_asynchronies_by_interval_by_phase(rhythm, bpm, phase_change_times, audio_onset_times, contact_onset_times)
+    MAD_by_phase = []
+    VAD_by_phase = []
+    for i in range(len(user_performance_matrix)):
+        asynchs_by_interval = user_performance_matrix[i]
+        #flatten
+        flat_asynchs_by_interval = [item for sublist in asynchs_by_interval for item in sublist]
+        MAD_by_phase.append(np.mean(np.abs(flat_asynchs_by_interval)))
+        VAD_by_phase.append(np.std(flat_asynchs_by_interval))
+    return MAD_by_phase, VAD_by_phase    
 
-def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
+def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
     distances_list = []
     for k in range(len(delays_list)-1): # for each phase
         spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(k, \
-            surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values)
+            surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm)
         emd = earth_movers_distance(spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected) # run emd
         distances_list.append(emd) # add to appropriate list.
         title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
@@ -471,7 +560,79 @@ def bar_plot_scores(names, scores, errors, title, ylabel):
     ax.set_ylabel(ylabel)
     plt.xticks(rotation=45, ha="right")
     ax.bar(np.arange(len(scores)), scores, yerr=errors, align='center')
+    plt.axhline(np.mean(scores), color='r')
     plt.tight_layout()
+
+
+def rotate_list(l, n):
+    return l[-n:] + l[:-n]
+
+
+def plot_scores(test_EMDs, test_MADs, test_VADs, bpm_labels, rhythm_name):
+    _, axes = plt.subplots(3,1)
+    num_2 = 39.5
+    num_1 = 19.5
+    axes[0].set_title(f"All phases \n EMDs MADs and VADs for {rhythm_name}")
+    axes[0].plot(np.arange(len(test_EMDs)), test_EMDs, color='r')
+    axes[0].set_ylabel("EMD")
+    axes[0].set_xticks(np.arange(len(test_EMDs)))
+    axes[0].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[0].axvline(num_1)
+    axes[0].axvline(num_2)
+    axes[1].plot(np.arange(len(test_MADs)), test_MADs, color='b')
+    axes[1].set_ylabel("MAD")
+    axes[1].set_xticks(np.arange(len(test_EMDs)))
+    axes[1].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[1].axvline(num_1)
+    axes[1].axvline(num_2)
+    axes[2].plot(np.arange(len(test_VADs)), test_VADs, color='g')
+    axes[2].set_ylabel("VAD")
+    axes[2].set_xticks(np.arange(len(test_EMDs)))
+    axes[2].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[2].axvline(num_1)
+    axes[2].axvline(num_2)
+    axes[2].set_xlabel("BPM")
+    plt.tight_layout()
+    return
+
+def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels):
+    mean_emd = np.mean(emd_arr, axis=0)
+    std_emd = np.std(emd_arr, axis=0)
+    mean_mad = np.mean(mads_arr, axis=0)
+    std_mad = np.std(mads_arr, axis=0)
+    mean_vad = np.mean(vads_arr, axis=0)
+    std_vad = np.std(vads_arr, axis=0)
+    _, axes = plt.subplots(3,1)
+    num_2 = 3.5
+    num_1 = 7.5
+    axes[0].set_title(f"Second test phase, all rhythms mean \n EMDs MADs and VADs")
+    axes[0].plot(np.arange(len(mean_emd)), mean_emd, color='r')
+    axes[0].fill_between(np.arange(len(mean_emd)), mean_emd+std_emd, mean_emd-std_emd, color = 'r', alpha = 0.4)
+    axes[0].set_ylabel("EMD")
+    # axes[0].set_xticks(np.arange(len(mean_emd)))
+    # axes[0].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[0].axvline(num_1)
+    axes[0].axvline(num_2)
+    axes[1].plot(np.arange(len(mean_mad)), mean_mad, color='b')
+    axes[1].fill_between(np.arange(len(mean_mad)), mean_mad+std_mad, mean_mad-std_mad, color = 'b', alpha = 0.4)
+    axes[1].set_ylabel("MAD")
+    # axes[1].set_xticks(np.arange(len(mean_emd)))
+    # axes[1].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[1].axvline(num_1)
+    axes[1].axvline(num_2)
+    axes[2].plot(np.arange(len(mean_vad)), mean_vad, color='g')
+    axes[2].fill_between(np.arange(len(mean_vad)), mean_vad+std_vad, mean_vad-std_vad, color = 'g', alpha = 0.4)
+    # axes[2].plot(np.arange(len(mean_vad)),  color='k')
+    # axes[2].plot(np.arange(len(mean_vad)), , color='k')
+    axes[2].set_ylabel("VAD")
+    # axes[2].set_xticks(np.arange(len(mean_emd)))
+    # axes[2].set_xticklabels(bpm_labels, rotation=45, ha='right')
+    axes[2].axvline(num_1)
+    axes[2].axvline(num_2)
+    axes[2].set_xlabel("Phases")
+    plt.tight_layout()
+    return
+
 
 
 # def cluster_intervals(num_intervals, gt_intervals)
@@ -491,43 +652,42 @@ if __name__ == '__main__':
 
     file_stems = ['2022_03_01_18_31_28_pp3', '2022_03_02_16_36_39_pp3', '2022_03_03_17_19_34_pp3']
 
+    
 
     ### load data ###
     print("Loading data...")
     t1 = time.time()
-    variable_lists_and_headers = load_data(file_stems)
+    vars_dicts = load_data(file_stems)
     end = time.time() - t1
     print("Data loaded. time taken: " + str(end))
 
-    vector_of_improvement_matrices = []
-
-    first_performances = [] # organizing the performance on the first tests to see if learning effect
+    scores_by_session = []
 
     conditions = []
-    for session_number in range(len(variable_lists_and_headers)):
 
-        header_dict = variable_lists_and_headers[session_number][1]
-        var_lists = variable_lists_and_headers[session_number][0]
+    for session_number in range(len(vars_dicts)):
+
+        header_dict = vars_dicts[session_number]["header_dict"]
+        var_lists = vars_dicts[session_number]["vars_by_rhythm_and_bpm"]
+
+        shuffled_bpm_indexes = np.arange(4)
+        bpm_presentations = []
+        
+        for i in range(len(header_dict['rhythm_strings'])):
+            bpm_order = rotate_list(list(shuffled_bpm_indexes), i)
+            bpm_presentations.append(bpm_order)
 
         # pull experimental condition string
         condition = ems_constants.counter_balanced_number_dict[header_dict["counter-balanced-number"]]
         conditions.append(condition)
-        # xlsx parser does not do 0-start counting
-        worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices" ]]
-        variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
 
         count = 0
 
-        all_emds = []
-
-
-        first_performance = []
-        first_performances.append(first_performance)
+        scores_by_rhythm = []
+        scores_by_session.append(scores_by_rhythm)
 
         repeat_list = header_dict['phase_repeats_list']
         
-        improvement_index_matrix = [] #first dimension, rhythm, second, bpm, third, test_val (0, before, 1, after)
-
         processed_vars_by_rhythm = []
 
         # doing analyses FOR EACH RHYTHM separately.
@@ -542,10 +702,8 @@ if __name__ == '__main__':
             processed_var_lists_by_bpm = []
             processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
 
-            emds = []
-
-            improvement_vector = []
-            improvement_index_matrix.append(improvement_vector)
+            scores_by_bpm = []
+            scores_by_rhythm.append(scores_by_bpm)
 
 
             bpms = header_dict['bpms'] # for each bpm
@@ -553,9 +711,14 @@ if __name__ == '__main__':
                 bpm = bpms[bpm_index]
 
                 # pull vars from list
-                contact_x_interped, reading_list_interped, \
-                    surpressed_contact_trace, surpressed_contact_onset_times, stim_onset_times, \
-                    audio_onset_times, stim_trace, audio_trace = var_lists[rhythm_index][bpm_index]
+                contact_x_interped = var_lists[rhythm_index][bpm_index]["contact_x_interped"]
+                reading_list_interped = var_lists[rhythm_index][bpm_index]["reading_list_interped"]
+                surpressed_contact_trace = var_lists[rhythm_index][bpm_index]["surpressed_contact_trace"]
+                surpressed_contact_onset_times = var_lists[rhythm_index][bpm_index]["surpressed_contact_onset_times"]
+                stim_onset_times = var_lists[rhythm_index][bpm_index]["stim onset times"]
+                audio_onset_times = var_lists[rhythm_index][bpm_index]["audio_onset_times"]
+                stim_trace = var_lists[rhythm_index][bpm_index]["stim_trace"]
+                audio_trace = var_lists[rhythm_index][bpm_index]["audio_trace"]
 
                 audio_hold = 30000/bpm 
                 first_audio = audio_onset_times[0]
@@ -565,17 +728,17 @@ if __name__ == '__main__':
                 # interpolated
                 # legend_labels = ['contact', 'stim', 'audio']
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
-                # view_window_begin = 40000
+                # view_window_begin = 5000
                 # view_window_end = -1
                 # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \
-                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
-                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+                #     contact_x_interped[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+                #         audio_trace[view_window_begin:view_window_end], contact_x_interped[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
-                #examine spiking
+                # # examine spiking
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
                 # plot_contact_trace_and_rhythm(surpressed_contact_trace[view_window_begin:view_window_end], \
-                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
-                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+                #    contact_x_interped[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+                #         audio_trace[view_window_begin:view_window_end], contact_x_interped[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
                 delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
                 
@@ -587,32 +750,40 @@ if __name__ == '__main__':
 
                 # check stim accuracy
                 # if bpm_index == 0:
-                #     x_vec_array = np.array(x_vec)
+
+                #     x_vec_array = np.array(contact_x_interped)
                 #     bool_selector = np.logical_and((x_vec_array > delays_list[2]), (x_vec_array < delays_list[3]))
                 #     title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check raw trace"
-                #     plot_contact_trace_and_rhythm(reading_list_interped[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
-                #         x_vec[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
+                #     plot_contact_trace_and_rhythm(reading_list_interped[bool_selector], contact_x_interped[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+                #         contact_x_interped[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
                 #     title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check spikes"
-                #     plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
-                #         x_vec[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
-
-                distances_array = emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values=contact_x_interped)
+                #     plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector],contact_x_interped[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+                #         contact_x_interped[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
+                
+                MAD_by_phase, VAD_by_phase = MAD_VAD_per_phase_calc(rhythm_substr, bpm, delays_list, audio_onset_times, surpressed_contact_onset_times)
+                
+                distances_array = emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, contact_x_interped, bpm)
                 dist_array = np.copy(distances_array)
 
-                improvement_score = [dist_array[1], dist_array[4]] # test before test after. If value is positive, distance was shorter later and improved. If neg, got worse. 
-                improvement_vector.append(improvement_score)
 
-                first_performance.append(dist_array[2])
+                phase_dict = {
+                    "MAD" : MAD_by_phase,
+                    "VAD" : VAD_by_phase,
+                    "EMD" : distances_array
+                }
+
+                scores_by_bpm.append(phase_dict)
+
+                
                 # fig, ax = plt.subplots()
                 # label_list = ["EMD", "VPD"]
                 # normalize EMD
 
                 # distances_array = np.divide(distances_array, np.max(distances_array)) why would we norm?
-                emds.append(distances_array)
 
                 # get intervals in this rhythm
-                wk_var_lists = get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times)
-                list_of_WK_var_lists_by_bpm.append(wk_var_lists)
+                # wk_var_lists = get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_contact_onset_times)
+                # list_of_WK_var_lists_by_bpm.append(wk_var_lists)
                 
 
             #______________________________________#
@@ -623,56 +794,142 @@ if __name__ == '__main__':
             
             print("done")
 
-        vector_of_improvement_matrices.append(improvement_index_matrix)
-        differences = [item[0]-item[1] for sublist in improvement_index_matrix for item in sublist]
-        print(f"mean improvement: {np.mean(differences)} +/- {np.std(differences)}")
+        # get mean differences by rhythm
+        # difference_EMD = []
+        # difference_MAD = []
+        # difference_VAD = []
+        # for rhythm_number in range(len(scores_by_rhythm)):
+        #     bpm_scores = scores_by_rhythm[rhythm_number]
+        #     diff_EMD_rhythm = []
+        #     difference_EMD.append(diff_EMD_rhythm)
+        #     diff_MAD_rhythm = []
+        #     difference_MAD.append(diff_MAD_rhythm)
+        #     diff_VAD_rhythm = []
+        #     difference_VAD.append(diff_VAD_rhythm)
+        #     for bpm_number in range(len(bpm_scores)):
+        #         scores_dict = bpm_scores[bpm_number]
+        #         diff_EMD = scores_dict['EMD'][1] - scores_dict['EMD'][4]
+        #         diff_EMD_rhythm.append(diff_EMD)
+        #         diff_VAD = scores_dict['VAD'][1] - scores_dict['VAD'][4]
+        #         diff_VAD_rhythm.append(diff_VAD)
+        #         diff_MAD = scores_dict['MAD'][1] - scores_dict['MAD'][4]
+        #         diff_MAD_rhythm.append(diff_MAD)
 
-        names = header_dict['rhythm_strings_names']
-        scores = []
-        errors = []
-        for improvement_vec in improvement_index_matrix:
-            # for every rhythm, add to the scores vector the mean of, for every index in the improvement vector,
-            scores.append(np.mean([i[0] - i[1] for i in improvement_vec]))
-            errors.append(np.std([i[0] - i[1] for i in improvement_vec]))
-        title = f"EMD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {np.mean(differences)} +/- {np.std(differences)}"
-        ylabel = "Baseline test EMD - post-test EMD"
-        bar_plot_scores(names, scores, errors, title, ylabel)
+        # print(f"mean improvement EMD: {np.mean(difference_EMD)} +/- {np.std(difference_EMD)} \n  mean improvement MAD: {np.mean(difference_MAD)} +/- {np.std(difference_MAD)} \n mean improvement VAD: {np.mean(difference_VAD)} +/- {np.std(difference_VAD)} \n")
 
-        for i in range(len(improvement_index_matrix)):
-            improvements_vec = improvement_index_matrix[i]
-            rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
-            name = header_dict['rhythm_strings_names'][i]
-            meann = np.mean(rhythm_improvements_vec)
-            stdd = np.std(rhythm_improvements_vec)
-            print(name + f", improvement: {meann}, +/- {stdd}")
+    all_EMDs = []
+    all_VADs = []
+    all_MADs = []
+    for rhythm_num in range(len(scores_by_rhythm)): # going by ACTUAL BPM PRESENTATION ORDER
+        bpm_presentation_list_short = bpm_presentations[rhythm_num]
+        bpm_presentation_list_single = bpm_presentation_list_short*len(scores_by_session)
+        bpm_presentation_list = list(np.repeat(bpm_presentation_list_single, 1))
+        bpm_axes = [bpms[i] for i in bpm_presentation_list]
+        test_EMDs = []
+        test_MADs = []
+        test_VADs = []
+        actual_bpms = []
+        for session_num in range(len(scores_by_session)):
+            scores_by_rhythm = scores_by_session[session_num][rhythm_num]
+            for index in range(len(bpm_presentation_list_short)):
+                bpm_index = bpm_presentation_list_short[index]
+                scores_list = scores_by_rhythm[bpm_index]
+                bpm_label = bpms[bpm_index]
+                # test_EMDs.append(scores_list["EMD"][0])
+                # test_EMDs.append(scores_list["EMD"][1])
+                # test_EMDs.append(scores_list["EMD"][2])
+                # test_EMDs.append(scores_list["EMD"][3])
+                test_EMDs.append(scores_list["EMD"][4])
+                # test_MADs.append(scores_list["MAD"][0])
+                # test_MADs.append(scores_list["MAD"][1])
+                # test_MADs.append(scores_list["MAD"][2])
+                # test_MADs.append(scores_list["MAD"][3])
+                test_MADs.append(scores_list["MAD"][4])
+                # test_VADs.append(scores_list["VAD"][0])
+                # test_VADs.append(scores_list["VAD"][1])
+                # test_VADs.append(scores_list["VAD"][2])
+                # test_VADs.append(scores_list["VAD"][3])
+                test_VADs.append(scores_list["VAD"][4])
+        all_MADs.append(test_MADs)
+        all_VADs.append(test_VADs)
+        all_EMDs.append(test_EMDs)
+        # plot_scores(test_EMDs, test_MADs, test_VADs, bpm_axes, header_dict['rhythm_strings_names'][rhythm_num])
+    mads_arr = np.array(all_MADs)
+    vads_arr = np.array(all_VADs)
+    emd_arr = np.array(all_EMDs)
+    plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes)
 
 
-        for i in range(len(improvement_index_matrix[0])):
-            improvements_vec = improvement_index_matrix[:][i]
-            rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
-            name = str(header_dict['bpms'][i])
-            meann = np.mean(rhythm_improvements_vec)
-            stdd = np.std(rhythm_improvements_vec)
-            print(name + f", improvement: {meann}, +/- {stdd}")
+        
+
+end = 3
 
 
-    perf_array = np.array(first_performances)
-    means_first_perf = np.mean(first_performances, axis=1)
-    stds_first_perf = np.std(first_performances, axis=1)
-
-    plt.figure()
-    fig, ax = plt.subplots()
-    ax.scatter(np.arange(len(means_first_perf)), means_first_perf )
-    ax.errorbar(np.arange(len(means_first_perf)), means_first_perf, yerr = stds_first_perf) 
-    ax.set_title("EMD over first performance for each condition")
-    ax.set_xticks(np.arange(len(means_first_perf)))
-    ax.set_xticklabels(conditions)
-    ax.set_ylabel("EMD")
-    ax.set_xlabel("experimental condition")
 
 
-    print("done")
-        # organize intervals
+
+
+
+
+        # titles = [f"EMD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {round_sig(np.mean(difference_EMD), 3)} +/- {round_sig(np.std(difference_EMD), 3)}", \
+        #     f"MAD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {round_sig(np.mean(difference_MAD), 3)} +/- {round_sig(np.std(difference_MAD), 3)}", \
+        #     f"VAD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {round_sig(np.mean(difference_VAD), 3)} +/- {round_sig(np.std(difference_VAD), 3)}"] 
+        # ylabels = ["Baseline test EMD - post-test EMD", "Baseline test MAD - post-test MAD", "Baseline test VAD - post-test VAD"]
+        # names = header_dict['rhythm_strings_names']
+        # for metric in range(0, 2*len(titles), 2):
+        #     scores = []
+        #     errors = []
+        #     for improvement_vec in improvement_index_matrix:
+        #         # for every rhythm, add to the scores vector the mean of, for every index in the improvement vector,
+        #         scores.append(np.mean([i[metric] - i[metric+1] for i in improvement_vec]))
+        #         errors.append(np.std([i[metric] - i[metric+1] for i in improvement_vec]))
+        
+        #     bar_plot_scores(names, scores, errors, titles[round(metric/2)], ylabels[round(metric/2)])
+
+        # for i in range(len(improvement_index_matrix)):
+        #     improvements_vec = improvement_index_matrix[i]
+        #     rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
+        #     name = header_dict['rhythm_strings_names'][i]
+        #     meann = np.mean(rhythm_improvements_vec)
+        #     stdd = np.std(rhythm_improvements_vec)
+        #     print(name + f", improvement: {meann}, +/- {stdd}")
+
+        # for i in range(len(improvement_index_matrix[0])):
+        #     improvements_vec = improvement_index_matrix[:][i]
+        #     rhythm_improvements_vec = [i[0] - i[1] for i in improvements_vec]
+        #     name = str(header_dict['bpms'][i])
+        #     meann = np.mean(rhythm_improvements_vec)
+        #     stdd = np.std(rhythm_improvements_vec)
+        #     print(name + f", improvement: {meann}, +/- {stdd}")
+
+
+    # perf_array = np.array(first_performances)
+    # means_first_perf_emd = np.mean(first_performances[:][:][0], axis = 0)
+    # std_first_perf_emd = np.std(first_performances[:][:][0], axis = 0)
+    # means_first_perf_mad = np.mean(first_performances[:][:][1], axis = 0)
+    # std_first_perf_mad = np.std(first_performances[:][:][1], axis = 0)
+    # means_first_perf_vad = np.mean(first_performances[:][:][2], axis = 0)
+    # std_first_perf_vad = np.std(first_performances[:][:][2], axis = 0)
+
+    # means_first = [means_first_perf_emd, means_first_perf_mad, means_first_perf_vad]
+    # std_first = [std_first_perf_emd, std_first_perf_mad, std_first_perf_vad]
+    # ylabels = ["EMD", "MAD", "VAD"]
+    # plt.figure()
+    # fig, axes = plt.subplots(3,1)
+    # for i in range(len(means_first)):
+    #     axes[i].scatter(np.arange(len(means_first[i])), means_first[i] )
+    #     axes[i].errorbar(np.arange(len(means_first[i])), means_first[i], yerr = std_first[i]) 
+    #     axes[i].set_ylabel(ylabels[i])
+        
+
+    # axes[i].set_xticks(np.arange(len(means_first[i])))
+    # axes[i].set_xlabel("experimental condition")
+    # axes[i].set_xticklabels(conditions)
+    # axes[0].set_title("EMD, MAD, VAD over first tests for each condition")
+
+
+print("done")
+        # # organize intervals
         # intervs, unique_intervals, num_unique = count_intervals(header_dict['rhythm_strings'][rhythm_index]) 
         # means = []
         # sds = []

@@ -100,7 +100,7 @@ counter_balanced_number_dict = {
     "3" : "no-EMS"
 }
 
-
+buffer_time_after = 50 # ms. the time after a given audio onset to look for contact onsets to estimate user performance of that interval.
 
 
 runtime_parameters = {

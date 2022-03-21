@@ -322,15 +322,29 @@ def read_contact_trace(ser,  len_rhythm_presentation_ms, samp_period_ms, reading
     # reads from contact detection serial object every sample period. Saves results to a list
     # time.sleep(1)
     # print("thread time since start " + str(time.time()- time_naught))
+    unplayed = True
     print("read thread begun")
     while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms + ems_constants.read_buffer_time_val:
         if ser.in_waiting:
             out = ser.readline().decode('utf-8')
             time_measured = time.time()
-            # if int(out[:-2]) > 5:
-            #     print(int(out[:-2]))
+            if int(out[:-2]) > ems_constants.baseline_subtractor:
+                print(int(out[:-2]))
+                if unplayed == True: # start sound feedback
+                    tap_tone.play()
+                    play_time = time.time() # record time of sound feedback
+                    unplayed = False # lock playability
             readings_list.append(int(out[:-2]))
             x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
+
+        if unplayed == False and time_measured > 0.5 + play_time: 
+            # if playability locked and more than half a second passed since play
+            unplayed = True #unlock playability
+            tap_tone.stop() # stop playing.
+
+
+
+            
     print("done reading trace")
     # print("mean samp period and stdv: " + str(mean_contact_samp_period) + " +/- " + str(stdv_contact_samp_period))
     return readings_list, x_values_list
@@ -624,10 +638,12 @@ def play_example_sounds():
 def test_sounds():
     fourfourty_tone.play()
     eighteighty_tone.play()
+    tap_tone.play()
     time.sleep(0.3)
     time_before = time.time()
     fourfourty_tone.stop()
     eighteighty_tone.stop()
+    tap_tone.stop()
     time_to_stop_tones = time.time() - time_before
     print("time to stop tones: " + str(time_to_stop_tones))
 
@@ -636,6 +652,8 @@ def load_sounds():
     fourfourty_tone = vlc.MediaPlayer("tones/440Hz_44100Hz_16bit_05sec.mp3")
     global eighteighty_tone
     eighteighty_tone = vlc.MediaPlayer("tones/880hz.mp3")
+    global tap_tone
+    tap_tone = vlc.MediaPlayer("tones/tap_tone.mp3")
     test_sounds()
     return
 
@@ -651,7 +669,7 @@ def test_contact_trace_read(contact_serial):
         out = contact_serial.readline().decode('utf-8')
         if int(out)>0:
             print(int(out[:-2]))
-
+            
 def set_up_serials(port_ems, port_contact):
     ems_serial = serial.Serial(port_ems, 115200) # baud number
     ems_serial.flushInput()
