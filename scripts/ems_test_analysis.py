@@ -1,26 +1,3 @@
-#### TO DO
-
-# Implement sound feedback and make small video for lewis
-# make graphs for slideshow
-    # video of sound feedback
-    # teams graph for display improvement preceision
-    # include feedback from reviewer in slideshow from IMI
-    # include planned schedule
-    # bar plots on learning by rhythm from yannik trial
-    # mean EMD at each condition for initial performance training from yannik trial
-    # mean EMD for initial testing
-    # mean EMD for experimental condition -- oh no -- EMS doesn't help??
-    # zoom in on data - off by a bit. goddamn.
-    # other metric - variability of interval reproduction -- mean fano factor for all reproduced intervals?
-        # learning?
-        # initial performance?
-    # hypothesize as to why it didn't work
-
-
-
-# Implement including the ORDER of the presentation of the tempos, rotating given tempos
-# plot those first improvements on only the first tempo display
-# examine first performance correlation with rhythm difficulty
 
 import warnings
 import pickle
@@ -568,34 +545,34 @@ def rotate_list(l, n):
     return l[-n:] + l[:-n]
 
 
-def plot_scores(test_EMDs, test_MADs, test_VADs, bpm_labels, rhythm_name):
+def plot_scores(test_EMDs, test_MADs, test_VADs, bpm_labels, title_name, header_dict, rhythm_num, v_line_1=0, v_line_2=0):
+    rhythm_name = header_dict['rhythm_strings_names'][rhythm_num]
     _, axes = plt.subplots(3,1)
-    num_2 = 39.5
-    num_1 = 19.5
-    axes[0].set_title(f"All phases \n EMDs MADs and VADs for {rhythm_name}")
+    axes[0].set_title(title_name)
     axes[0].plot(np.arange(len(test_EMDs)), test_EMDs, color='r')
     axes[0].set_ylabel("EMD")
     axes[0].set_xticks(np.arange(len(test_EMDs)))
     axes[0].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[0].axvline(num_1)
-    axes[0].axvline(num_2)
     axes[1].plot(np.arange(len(test_MADs)), test_MADs, color='b')
     axes[1].set_ylabel("MAD")
     axes[1].set_xticks(np.arange(len(test_EMDs)))
     axes[1].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[1].axvline(num_1)
-    axes[1].axvline(num_2)
     axes[2].plot(np.arange(len(test_VADs)), test_VADs, color='g')
     axes[2].set_ylabel("VAD")
     axes[2].set_xticks(np.arange(len(test_EMDs)))
     axes[2].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[2].axvline(num_1)
-    axes[2].axvline(num_2)
     axes[2].set_xlabel("BPM")
+    if v_line_1 > 0 and v_line_2 > 0:
+        axes[0].axvline(v_line_1)
+        axes[0].axvline(v_line_2)
+        axes[1].axvline(v_line_1)
+        axes[1].axvline(v_line_2)
+        axes[2].axvline(v_line_1)
+        axes[2].axvline(v_line_2)
     plt.tight_layout()
     return
 
-def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels):
+def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels, title_name, v_line_1=0, v_line_2=0):
     mean_emd = np.mean(emd_arr, axis=0)
     std_emd = np.std(emd_arr, axis=0)
     mean_mad = np.mean(mads_arr, axis=0)
@@ -603,36 +580,62 @@ def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels):
     mean_vad = np.mean(vads_arr, axis=0)
     std_vad = np.std(vads_arr, axis=0)
     _, axes = plt.subplots(3,1)
-    num_2 = 3.5
-    num_1 = 7.5
-    axes[0].set_title(f"Second test phase, all rhythms mean \n EMDs MADs and VADs")
+    axes[0].set_title(title_name)
     axes[0].plot(np.arange(len(mean_emd)), mean_emd, color='r')
     axes[0].fill_between(np.arange(len(mean_emd)), mean_emd+std_emd, mean_emd-std_emd, color = 'r', alpha = 0.4)
     axes[0].set_ylabel("EMD")
-    # axes[0].set_xticks(np.arange(len(mean_emd)))
-    # axes[0].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[0].axvline(num_1)
-    axes[0].axvline(num_2)
     axes[1].plot(np.arange(len(mean_mad)), mean_mad, color='b')
     axes[1].fill_between(np.arange(len(mean_mad)), mean_mad+std_mad, mean_mad-std_mad, color = 'b', alpha = 0.4)
     axes[1].set_ylabel("MAD")
-    # axes[1].set_xticks(np.arange(len(mean_emd)))
-    # axes[1].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[1].axvline(num_1)
-    axes[1].axvline(num_2)
     axes[2].plot(np.arange(len(mean_vad)), mean_vad, color='g')
     axes[2].fill_between(np.arange(len(mean_vad)), mean_vad+std_vad, mean_vad-std_vad, color = 'g', alpha = 0.4)
-    # axes[2].plot(np.arange(len(mean_vad)),  color='k')
-    # axes[2].plot(np.arange(len(mean_vad)), , color='k')
     axes[2].set_ylabel("VAD")
-    # axes[2].set_xticks(np.arange(len(mean_emd)))
-    # axes[2].set_xticklabels(bpm_labels, rotation=45, ha='right')
-    axes[2].axvline(num_1)
-    axes[2].axvline(num_2)
     axes[2].set_xlabel("Phases")
+    if v_line_1 > 0 and v_line_2 > 0:
+        axes[0].axvline(v_line_1)
+        axes[0].axvline(v_line_2)
+        axes[1].axvline(v_line_1)
+        axes[1].axvline(v_line_2)
+        axes[2].axvline(v_line_1)
+        axes[2].axvline(v_line_2)
     plt.tight_layout()
     return
 
+
+def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict):
+    all_EMDs = []
+    all_VADs = []
+    all_MADs = []
+    for rhythm_num in range(len(scores_by_rhythm)): # going by ACTUAL BPM PRESENTATION ORDER
+        bpm_presentation_list_short = bpm_presentations[rhythm_num]
+        bpm_presentation_list_single = bpm_presentation_list_short*len(scores_by_session)
+        bpm_presentation_list = list(np.repeat(bpm_presentation_list_single, len(list_of_phases_to_plot)))
+        bpm_axes = [bpms[i] for i in bpm_presentation_list]
+        test_EMDs = []
+        test_MADs = []
+        test_VADs = []
+        actual_bpms = []
+        for session_num in range(len(scores_by_session)):
+            scores_by_rhythm = scores_by_session[session_num][rhythm_num]
+            for index in range(len(bpm_presentation_list_short)):
+                bpm_index = bpm_presentation_list_short[index]
+                scores_list = scores_by_rhythm[bpm_index]
+                bpm_label = bpms[bpm_index]
+                for phase in list_of_phases_to_plot:
+                    test_EMDs.append(scores_list["EMD"][phase])
+                    test_MADs.append(scores_list["MAD"][phase])
+                    test_VADs.append(scores_list["VAD"][phase])
+        all_MADs.append(test_MADs)
+        all_VADs.append(test_VADs)
+        all_EMDs.append(test_EMDs)
+        if all_rhythms_mean_flag == 0:
+            new_title_name = title_name + f" {header_dict['rhythm_strings_names'][rhythm_num]}"
+            plot_scores(test_EMDs, test_MADs, test_VADs, bpm_axes, new_title_name, header_dict, rhythm_num)
+    mads_arr = np.array(all_MADs)
+    vads_arr = np.array(all_VADs)
+    emd_arr = np.array(all_EMDs)
+    if all_rhythms_mean_flag == 1:
+        plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes, title_name)
 
 
 # def cluster_intervals(num_intervals, gt_intervals)
@@ -650,7 +653,7 @@ if __name__ == '__main__':
     # filter_test()
 
 
-    file_stems = ['2022_03_01_18_31_28_pp3', '2022_03_02_16_36_39_pp3', '2022_03_03_17_19_34_pp3']
+    file_stems = ['2022_03_23_13_46_12_pp4']
 
     
 
@@ -670,7 +673,7 @@ if __name__ == '__main__':
         header_dict = vars_dicts[session_number]["header_dict"]
         var_lists = vars_dicts[session_number]["vars_by_rhythm_and_bpm"]
 
-        shuffled_bpm_indexes = np.arange(4)
+        shuffled_bpm_indexes = np.arange(len(header_dict['bpms']))
         bpm_presentations = []
         
         for i in range(len(header_dict['rhythm_strings'])):
@@ -715,7 +718,7 @@ if __name__ == '__main__':
                 reading_list_interped = var_lists[rhythm_index][bpm_index]["reading_list_interped"]
                 surpressed_contact_trace = var_lists[rhythm_index][bpm_index]["surpressed_contact_trace"]
                 surpressed_contact_onset_times = var_lists[rhythm_index][bpm_index]["surpressed_contact_onset_times"]
-                stim_onset_times = var_lists[rhythm_index][bpm_index]["stim onset times"]
+                stim_onset_times = var_lists[rhythm_index][bpm_index]["stim_onset_times"]
                 audio_onset_times = var_lists[rhythm_index][bpm_index]["audio_onset_times"]
                 stim_trace = var_lists[rhythm_index][bpm_index]["stim_trace"]
                 audio_trace = var_lists[rhythm_index][bpm_index]["audio_trace"]
@@ -773,8 +776,34 @@ if __name__ == '__main__':
                 }
 
                 scores_by_bpm.append(phase_dict)
+            #______________________________________#
+            ###### END OF PER TRIAL ANALYSIS ####### (still per rhythm)
 
-                
+            # all_emds = all_emds + emds
+            # plot_emds(emds, header_dict, rhythm_index)
+            
+            print("done")
+
+        
+
+        # print(f"mean improvement EMD: {np.mean(difference_EMD)} +/- {np.std(difference_EMD)} \n  mean improvement MAD: {np.mean(difference_MAD)} +/- {np.std(difference_MAD)} \n mean improvement VAD: {np.mean(difference_VAD)} +/- {np.std(difference_VAD)} \n")
+    title_name_mean = f"Testing phases, all rhythms mean \n EMDs MADs and VADs"
+    title_name_rhythms = f"All phases \n EMDs MADs and VADs for"
+    all_rhythms_mean_flag = 0
+    list_of_phases_to_plot = [4]
+    title_name = title_name_rhythms
+
+    plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict)
+    
+
+
+        
+
+end = 3
+
+
+
+
                 # fig, ax = plt.subplots()
                 # label_list = ["EMD", "VPD"]
                 # normalize EMD
@@ -786,15 +815,10 @@ if __name__ == '__main__':
                 # list_of_WK_var_lists_by_bpm.append(wk_var_lists)
                 
 
-            #______________________________________#
-            ###### END OF PER TRIAL ANALYSIS ####### (still per rhythm)
 
-            # all_emds = all_emds + emds
-            # plot_emds(emds, header_dict, rhythm_index)
-            
-            print("done")
 
-        # get mean differences by rhythm
+
+# get mean differences by rhythm
         # difference_EMD = []
         # difference_MAD = []
         # difference_VAD = []
@@ -814,61 +838,6 @@ if __name__ == '__main__':
         #         diff_VAD_rhythm.append(diff_VAD)
         #         diff_MAD = scores_dict['MAD'][1] - scores_dict['MAD'][4]
         #         diff_MAD_rhythm.append(diff_MAD)
-
-        # print(f"mean improvement EMD: {np.mean(difference_EMD)} +/- {np.std(difference_EMD)} \n  mean improvement MAD: {np.mean(difference_MAD)} +/- {np.std(difference_MAD)} \n mean improvement VAD: {np.mean(difference_VAD)} +/- {np.std(difference_VAD)} \n")
-
-    all_EMDs = []
-    all_VADs = []
-    all_MADs = []
-    for rhythm_num in range(len(scores_by_rhythm)): # going by ACTUAL BPM PRESENTATION ORDER
-        bpm_presentation_list_short = bpm_presentations[rhythm_num]
-        bpm_presentation_list_single = bpm_presentation_list_short*len(scores_by_session)
-        bpm_presentation_list = list(np.repeat(bpm_presentation_list_single, 1))
-        bpm_axes = [bpms[i] for i in bpm_presentation_list]
-        test_EMDs = []
-        test_MADs = []
-        test_VADs = []
-        actual_bpms = []
-        for session_num in range(len(scores_by_session)):
-            scores_by_rhythm = scores_by_session[session_num][rhythm_num]
-            for index in range(len(bpm_presentation_list_short)):
-                bpm_index = bpm_presentation_list_short[index]
-                scores_list = scores_by_rhythm[bpm_index]
-                bpm_label = bpms[bpm_index]
-                # test_EMDs.append(scores_list["EMD"][0])
-                # test_EMDs.append(scores_list["EMD"][1])
-                # test_EMDs.append(scores_list["EMD"][2])
-                # test_EMDs.append(scores_list["EMD"][3])
-                test_EMDs.append(scores_list["EMD"][4])
-                # test_MADs.append(scores_list["MAD"][0])
-                # test_MADs.append(scores_list["MAD"][1])
-                # test_MADs.append(scores_list["MAD"][2])
-                # test_MADs.append(scores_list["MAD"][3])
-                test_MADs.append(scores_list["MAD"][4])
-                # test_VADs.append(scores_list["VAD"][0])
-                # test_VADs.append(scores_list["VAD"][1])
-                # test_VADs.append(scores_list["VAD"][2])
-                # test_VADs.append(scores_list["VAD"][3])
-                test_VADs.append(scores_list["VAD"][4])
-        all_MADs.append(test_MADs)
-        all_VADs.append(test_VADs)
-        all_EMDs.append(test_EMDs)
-        # plot_scores(test_EMDs, test_MADs, test_VADs, bpm_axes, header_dict['rhythm_strings_names'][rhythm_num])
-    mads_arr = np.array(all_MADs)
-    vads_arr = np.array(all_VADs)
-    emd_arr = np.array(all_EMDs)
-    plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes)
-
-
-        
-
-end = 3
-
-
-
-
-
-
 
 
         # titles = [f"EMD differences by rhythm, {condition}, \n date: {header_dict['test time']}, \n mean: {round_sig(np.mean(difference_EMD), 3)} +/- {round_sig(np.std(difference_EMD), 3)}", \

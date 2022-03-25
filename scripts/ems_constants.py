@@ -4,6 +4,7 @@ import numpy as np
 
 # CURRENT PARAMS FOR NICK: 7 intensity 150 ms.
 practice_rhythm = "1000100000100000"
+demo_rhythm = "1000100010010010"
 practice_bpm = 130
 to_the_beat_substr = "1000100010001000"
 lunch_room_beat = "1000100010100010"
@@ -18,6 +19,12 @@ telescoping = "1000100101001000"
 count_in_substr = '1000100010001000'
 random_generated_one = "1000100010100100"
 random_generated_two = "0100010001010010"
+random_one_march_22 = '0001000100010001'
+random_two_march_22 = '1000100010010010'
+random_three_march_22 = '1001000100010010'
+random_four_march_22 = '0010000100010001'
+random_one_march_23 = "0000100010000010"
+random_two_march_23 = "1000100010010010"
 nothing_str = '00000000'
 all_str = '11111111'
 almost_all = '11111011'
@@ -31,19 +38,21 @@ seguiria = '100010001000001000001000'
 guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
-rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
-
+# rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
+rhythm_strings = [ random_one_march_23, random_two_march_23 ] 
+# random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["to_the_beat_substr", "syncopated_substr",  "three_to_four_substr", "random_three", "random_four", "lunch_room_beat", "random_five"] # 
-
+rhythm_strings_names = ["random_one_march_23", "random_two_march_23"] # , 
+# "random_one_march_22", "random_two_march_22", "random_three_march_22", "random_four_march_22"
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
-bpms = [100, 160, 140, 120] # shuffled  
+# bpms = [100, 160, 140, 120] # shuffled  
+bpms = [110, 150]
 # repeats = 4 # ems and audio period repeats
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
@@ -55,8 +64,10 @@ audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
 phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
-phase_repeats_list = [5, 3, 5, 1, 3] # repeats at each phase
+phase_repeats_list = [8, 4, 7, 1, 4] # repeats at each phase
+demo_phase_repeats_list = [5, 3, 4, 1, 3] # repeats at each phase
 phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
+phase_warning_strs =  ["TRAINING", "METRONOME TESTING", "EXPERIMENTAL TRAINING", "AUDIO ADJUST PHASE", "METRONOME TESTING"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
 ems_on_flags = [0, 0, 1, 0, 0]
@@ -66,16 +77,17 @@ delay_trial_num = 12 # if measuring delay, this is how many trials we use
 sleep_len_ms = 1000 # seconds of waiting while zeroing sensor
 sd_more_than_mult = 7 # deprecated
 actual_stim_length = 155 # actual stim length
-baseline_subtractor = 70 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
+baseline_subtractor = 10 # this is the noise threshold for contact trace BACK THIS UP EXPERIMENTALLY?
 surpression_window = 300 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms
-port_contact = '/dev/cu.usbmodem1401'
+port_contact = '/dev/cu.usbmodem11201'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
+phase_change_warnings_delay = 3000 # ms before phase change to warn participant
 verbose_mode = 0
 channel = 0
 read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
@@ -108,6 +120,12 @@ runtime_parameters = {
     "random_three" : random_three,
     "random_four" : random_four,
     "random_five" : random_five,
+    "random_one_march_22" : random_one_march_22,
+    "random_two_march_22" : random_two_march_22,
+    "random_three_march_22" : random_three_march_22,
+    "random_four_march_22" : random_four_march_22,
+    "random_one_march_23" : random_one_march_23,
+    "random_two_march_23" : random_two_march_23,
     "lunch_room_beat" : lunch_room_beat,
     "clave_substr" : clave_substr,
     "five_to_four_substr" : five_to_four_substr,

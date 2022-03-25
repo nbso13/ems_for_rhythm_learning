@@ -23,6 +23,7 @@ def bar_plot_scores(scores, title):
     plt.xticks(rotation=45, ha="right")
     ax.bar(np.arange(len(scores)), scores, align='center')
     plt.tight_layout()
+    return
     
 def ioi_ent(rhyth_str): # calculated as in Milne and Herff 2020
     possible_intervals = range(0, len(rhyth_str)) # x axis of probability distribtuon
@@ -268,12 +269,12 @@ if __name__ == '__main__':
     length = 16
     attempts = 65500
 
-    model_score_ioi_ent_flag = 1 # if yes, include ioi entropy into model
+    model_score_ioi_ent_flag = 0 # if yes, include ioi entropy into model
     bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=1, num_onsets=0)
     num_onsets = [rhythm.count('1') for rhythm in bin_list]
     if model_score_ioi_ent_flag:
-        for j in range(5, 17, 2):
-            rhythms, scores_out, _ = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=3, target_score=j, unique_flag=1)
+        for j in range(5, 9, 2):
+            rhythms, scores_out, _ = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=4, target_score=j, unique_flag=1)
             for i in range(len(rhythms)):
                 print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}")
     else:
