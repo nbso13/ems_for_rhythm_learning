@@ -546,7 +546,6 @@ def rotate_list(l, n):
 
 
 def plot_scores(test_EMDs, test_MADs, test_VADs, bpm_labels, title_name, header_dict, rhythm_num, v_line_1=0, v_line_2=0):
-    rhythm_name = header_dict['rhythm_strings_names'][rhythm_num]
     _, axes = plt.subplots(3,1)
     axes[0].set_title(title_name)
     axes[0].plot(np.arange(len(test_EMDs)), test_EMDs, color='r')
@@ -572,7 +571,7 @@ def plot_scores(test_EMDs, test_MADs, test_VADs, bpm_labels, title_name, header_
     plt.tight_layout()
     return
 
-def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels, title_name, v_line_1=0, v_line_2=0):
+def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels, title_name, v_line_1, v_line_2):
     mean_emd = np.mean(emd_arr, axis=0)
     std_emd = np.std(emd_arr, axis=0)
     mean_mad = np.mean(mads_arr, axis=0)
@@ -602,7 +601,7 @@ def plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_labels, title_name, v_line
     return
 
 
-def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict):
+def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0):
     all_EMDs = []
     all_VADs = []
     all_MADs = []
@@ -630,12 +629,12 @@ def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_na
         all_EMDs.append(test_EMDs)
         if all_rhythms_mean_flag == 0:
             new_title_name = title_name + f" {header_dict['rhythm_strings_names'][rhythm_num]}"
-            plot_scores(test_EMDs, test_MADs, test_VADs, bpm_axes, new_title_name, header_dict, rhythm_num)
+            plot_scores(test_EMDs, test_MADs, test_VADs, bpm_axes, new_title_name, header_dict, rhythm_num, v_line_1, v_line_2)
     mads_arr = np.array(all_MADs)
     vads_arr = np.array(all_VADs)
     emd_arr = np.array(all_EMDs)
     if all_rhythms_mean_flag == 1:
-        plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes, title_name)
+        plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes, title_name, v_line_1, v_line_2)
 
 
 # def cluster_intervals(num_intervals, gt_intervals)
@@ -652,8 +651,8 @@ if __name__ == '__main__':
     # emd_tests()
     # filter_test()
 
-
-    file_stems = ['2022_03_23_13_46_12_pp4']
+    # file_stems = ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
+    file_stems = ['2022_03_23_13_46_12_pp4', '2022_03_24_16_20_37_pp4', '2022_03_25_15_29_53_pp4']
 
     
 
@@ -790,10 +789,10 @@ if __name__ == '__main__':
     title_name_mean = f"Testing phases, all rhythms mean \n EMDs MADs and VADs"
     title_name_rhythms = f"All phases \n EMDs MADs and VADs for"
     all_rhythms_mean_flag = 0
-    list_of_phases_to_plot = [4]
+    list_of_phases_to_plot = [3, 4]
     title_name = title_name_rhythms
 
-    plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict)
+    plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0)
     
 
 

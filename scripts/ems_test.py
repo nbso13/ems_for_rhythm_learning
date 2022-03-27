@@ -339,19 +339,19 @@ def read_contact_trace(ser, len_rhythm_presentation_ms, samp_period_ms, readings
         if ser.in_waiting:
             out = ser.readline().decode('utf-8')
             time_measured = time.time()
-            if int(out[:-2]) > ems_constants.baseline_subtractor:
-                # print(int(out[:-2]))
-                if unplayed == True: # start sound feedback
-                    tap_tone.play()
-                    play_time = time.time() # record time of sound feedback
-                    unplayed = False # lock playability
+            # if int(out[:-2]) > ems_constants.baseline_subtractor:
+            #     # print(int(out[:-2]))
+            #     if unplayed == True: # start sound feedback
+            #         tap_tone.play()
+            #         play_time = time.time() # record time of sound feedback
+            #         unplayed = False # lock playability
             readings_list.append(int(out[:-2]))
             x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
 
-        if unplayed == False and time_measured > 0.2 + play_time: 
-            # if playability locked and more than half a second passed since play
-            unplayed = True #unlock playability
-            tap_tone.stop() # stop playing.
+        # if unplayed == False and time_measured > 0.2 + play_time: 
+        #     # if playability locked and more than half a second passed since play
+        #     unplayed = True #unlock playability
+        #     tap_tone.stop() # stop playing.
 
 
 
@@ -716,7 +716,7 @@ def load_sounds():
     # note_tone = vlc.MediaPlayer("tones/snare.m4a")
     note_tone = vlc.MediaPlayer("tones/440Hz_44100Hz_16bit_05sec.mp3")
     global tap_tone
-    tap_tone = vlc.MediaPlayer("tones/feedback_tone.wav")
+    tap_tone = vlc.MediaPlayer("tones/tap_tone.mp3")
     test_sounds()
     return
 

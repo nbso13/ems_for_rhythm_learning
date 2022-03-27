@@ -471,8 +471,7 @@ if __name__ == '__main__':
     # emd_tests()
     # filter_test()
 
-
-    file_stems = ['2022_03_23_13_46_12_pp4']
+    file_stems =  ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
 
 
     ### load data ###

@@ -39,12 +39,12 @@ guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
-rhythm_strings = [ random_one_march_23, random_two_march_23 ] 
+rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ["random_one_march_23", "random_two_march_23"] # , 
+rhythm_strings_names = ['syncopated_substr', 'flip_the_beat', 'random_one_march_22', 'random_two_march_22', 'random_three_march_22', 'random_four_march_22', 'random_five']  # , 
 # "random_one_march_22", "random_two_march_22", "random_three_march_22", "random_four_march_22"
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
@@ -83,7 +83,7 @@ contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms
-port_contact = '/dev/cu.usbmodem11201'
+port_contact = '/dev/cu.usbmodem1201'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
