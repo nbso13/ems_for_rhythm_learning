@@ -653,6 +653,7 @@ if __name__ == '__main__':
 
     # file_stems = ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
     file_stems = ['2022_03_23_13_46_12_pp4', '2022_03_24_16_20_37_pp4', '2022_03_25_15_29_53_pp4']
+    # file_stems =  ['2022_03_27_13_56_12_pp5']
 
     
 
@@ -786,11 +787,11 @@ if __name__ == '__main__':
         
 
         # print(f"mean improvement EMD: {np.mean(difference_EMD)} +/- {np.std(difference_EMD)} \n  mean improvement MAD: {np.mean(difference_MAD)} +/- {np.std(difference_MAD)} \n mean improvement VAD: {np.mean(difference_VAD)} +/- {np.std(difference_VAD)} \n")
-    title_name_mean = f"Testing phases, all rhythms mean \n EMDs MADs and VADs"
-    title_name_rhythms = f"All phases \n EMDs MADs and VADs for"
-    all_rhythms_mean_flag = 0
-    list_of_phases_to_plot = [3, 4]
-    title_name = title_name_rhythms
+    title_name_mean = f"Last test block, all rhythms mean \n EMDs MADs and VADs"
+    title_name_rhythms = f"All test blocks \n EMDs MADs and VADs for"
+    all_rhythms_mean_flag = 1
+    list_of_phases_to_plot = [4]
+    title_name = title_name_mean
 
     plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0)
     
