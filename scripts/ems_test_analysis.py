@@ -470,7 +470,7 @@ def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
         contact_onset_times_after = surpressed_contact_onset_times[surpressed_contact_onset_times >  phase_audio_onsets[j]]
         if len(contact_onset_times_after) == 0: # If no contacts after audio, skip this audio.
             # raise ValueError("no contacts after this audio!")
-            warnings.warn(f'no contact after audio.')
+            warnings.warn(f'no contact at all after audio !!')
         else:
             arg_min = np.argmin(np.abs(np.subtract(contact_onset_times_after, phase_audio_onsets[j+1]))) # throws out the first one...
             # get the user interval
@@ -499,7 +499,7 @@ def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_co
         # plot_traces(xvec, [audio_trace, contact_trace], header_dict['samp_period_ms'], labels, title)
 
         # for each onset time
-        ground_truth_intervals, user_intervals, = accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times)
+        ground_truth_intervals, user_intervals = accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times)
         var_list = [ground_truth_intervals, user_intervals]
         var_lists.append(var_list) # now has each WK relevant variable for each phase
     return var_lists
@@ -789,7 +789,7 @@ if __name__ == '__main__':
     title_name_mean = f"Testing phases, all rhythms mean \n EMDs MADs and VADs"
     title_name_rhythms = f"All phases \n EMDs MADs and VADs for"
     all_rhythms_mean_flag = 0
-    list_of_phases_to_plot = [3, 4]
+    list_of_phases_to_plot = [0,1,2,3, 4]
     title_name = title_name_rhythms
 
     plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0)
