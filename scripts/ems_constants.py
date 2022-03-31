@@ -24,7 +24,7 @@ random_two_march_22 = '1000100010010010'
 random_three_march_22 = '1001000100010010'
 random_four_march_22 = '0010000100010001'
 random_one_march_23 = "0000100010000010"
-random_two_march_23 = "1000100010010010"
+# random_two_march_23 = "1000100010010010"
 nothing_str = '00000000'
 all_str = '11111111'
 almost_all = '11111011'
@@ -39,24 +39,28 @@ guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
-rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
+# rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
+rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
+# rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
-rhythm_strings_names = ['syncopated_substr', 'flip_the_beat', 'random_one_march_22', 'random_two_march_22', 'random_three_march_22', 'random_four_march_22', 'random_five']  # , 
-# "random_one_march_22", "random_two_march_22", "random_three_march_22", "random_four_march_22"
+# rhythm_strings_names = ['to_the_beat_substr_1', 'flip_the_beat_1', 'random_three_march_22_1', 'random_four_march_22_1', 'to_the_beat_substr_2', 'flip_the_beat_2',  'random_three_march_22_2', 'random_four_march_22_2'] 
+rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
 # bpms = [100, 160, 140, 120] # shuffled  
-bpms = [110, 150]
+bpms = [130, 135]
 # repeats = 4 # ems and audio period repeats
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
 # no_audio_repeats = 4
+sound_feedback_mode_flag = 0
+sound_feedback_time_length = 270 # ms. measured by recording audio and tapping the sensor loudly and measuring time to the following tone.
 prep_time_ms = 100
 update_period_ms = 2 
 refractory_period_ms = 250 
@@ -82,7 +86,7 @@ surpression_window = 300 # ms BACK THIS UP EXPERIMENTALLY?
 contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
-delay_reduction = 120 # ms
+delay_reduction = 120 # ms is there some measurement of sensor to computer delay??
 port_contact = '/dev/cu.usbmodem11201'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
@@ -125,7 +129,7 @@ runtime_parameters = {
     "random_three_march_22" : random_three_march_22,
     "random_four_march_22" : random_four_march_22,
     "random_one_march_23" : random_one_march_23,
-    "random_two_march_23" : random_two_march_23,
+    # "random_two_march_23" : random_two_march_23,
     "lunch_room_beat" : lunch_room_beat,
     "clave_substr" : clave_substr,
     "five_to_four_substr" : five_to_four_substr,
@@ -171,5 +175,6 @@ runtime_parameters = {
     "interval_tolerance" : interval_tolerance, #ms
     "phase_name_strs" : phase_name_strs, # name phases
     "num_phases" : num_phases, # number of phases is number of names of phases
-    "worksheet_data_begin_indices" : worksheet_data_begin_indices# where empty data space begins in each worksheet
+    "worksheet_data_begin_indices" : worksheet_data_begin_indices,# where empty data space begins in each worksheet
+    "sound_feedback_mode_flag" : sound_feedback_mode_flag
 }
