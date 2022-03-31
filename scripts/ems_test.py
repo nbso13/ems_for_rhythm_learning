@@ -335,26 +335,34 @@ def read_contact_trace(ser, len_rhythm_presentation_ms, samp_period_ms, readings
     # print("thread time since start " + str(time.time()- time_naught))
     unplayed = True
     print("read thread begun")
+    if ems_constants.sound_feedback_mode_flag == 1: # if we want feedback we have this loop
+        while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms + ems_constants.read_buffer_time_val:
+            if ser.in_waiting:
+                out = ser.readline().decode('utf-8')
+                time_measured = time.time()
+                if int(out[:-2]) > ems_constants.baseline_subtractor:
+                    # print(int(out[:-2]))
+                    if unplayed == True: # start sound feedback
+                        tap_tone.play()
+                        play_time = time.time() # record time of sound feedback
+                        unplayed = False # lock playability
+                readings_list.append(int(out[:-2]))
+                x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
+
+            if (unplayed == False and time_measured > 0.05 + play_time) and (np.mean(readings_list[-10:-1]) < ems_constants.baseline_subtractor): 
+                # if playability locked and more than half a second passed since play
+                unplayed = True #unlock playability
+                tap_tone.stop() # stop playing.
+
+    # else: # otherwise same thing but no sound feedback
     while (time.time()-time_naught_contact_trace)*1000 < len_rhythm_presentation_ms + ems_constants.read_buffer_time_val:
         if ser.in_waiting:
             out = ser.readline().decode('utf-8')
+            # print(int(out[:-2]))
             time_measured = time.time()
             # if int(out[:-2]) > ems_constants.baseline_subtractor:
-            #     # print(int(out[:-2]))
-            #     if unplayed == True: # start sound feedback
-            #         tap_tone.play()
-            #         play_time = time.time() # record time of sound feedback
-            #         unplayed = False # lock playability
             readings_list.append(int(out[:-2]))
             x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
-
-        # if unplayed == False and time_measured > 0.2 + play_time: 
-        #     # if playability locked and more than half a second passed since play
-        #     unplayed = True #unlock playability
-        #     tap_tone.stop() # stop playing.
-
-
-
             
     print("done reading trace")
     # print("mean samp period and stdv: " + str(mean_contact_samp_period) + " +/- " + str(stdv_contact_samp_period))
@@ -553,7 +561,7 @@ def zero_sensor(contact_ser, sleep_len_ms, samp_period_ms):
             first_time_naught)
         baseline_mean = np.mean(np.array(initial_outlist))
         baseline_sd = np.std(np.array(initial_outlist))
-        print("Mean basline was "  + str(baseline_mean) + " +/- " + str(baseline_sd))
+        print("Mean baseline was "  + str(baseline_mean) + " +/- " + str(baseline_sd))
         out = input("try again?")
         if out == 'y':
             repeat = True
@@ -618,9 +626,9 @@ def measure_delay(ems_serial, contact_ser, actual_stim_length, trial_num, sleep_
         first_responses_post_stim.append(times_responded_ms[first_threshold_cross_post_stim])
         diffs.append(times_responded_ms[first_threshold_cross_post_stim] - times_stimmed_ms[i])
     first_responses_post_stim = np.array(first_responses_post_stim)
-    mean_delay = np.mean(diffs) - ems_constants.delay_reduction # THIS IS THE DELAY FROM THE SENSOR BACK TO THE COMPUTER
+    mean_delay = np.mean(diffs) # ROUNDTRIP DELAY FROM THE SENSOR BACK TO THE COMPUTER
     std_delay = np.std(diffs)
-
+    
     return mean_delay, std_delay, first_responses_post_stim, times_stimmed_ms, reading_results, x_value_results
 
 def test_double_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm):
@@ -717,7 +725,7 @@ def load_sounds():
     note_tone = vlc.MediaPlayer("tones/440Hz_44100Hz_16bit_05sec.mp3")
     global tap_tone
     tap_tone = vlc.MediaPlayer("tones/tap_tone.mp3")
-    test_sounds()
+    # test_sounds()
     return
 
 def listen_serial(ems_serial):
@@ -979,7 +987,20 @@ def play_rhythm_new(ems_serial, contact_ser, actual_stim_length, rhythm_substr, 
     audio_times_dont_play = [i+prep_time_ms for i in audio_times_dont_play]
     phase_change_times = [i+prep_time_ms for i in phase_change_times]
 
-    ### add MEAN DELAY to audio and to metronome
+    ### add MEAN DELAY to audio and to metronome.
+    # here we are trying to set it up so that EMS activates at the correct delay to cause the finger 
+    # # to tap triggering  the feedback sound to coincide with the note tone, if we're using audio feedback.
+    # mean sensor-measured round trip delay is the delay between the go signal from the computer to the electrodes +
+    # delay from muscles contracting and finger moving to tap sensor + delay from sensor relay back to computer.
+    # delay that we want to also add is the delay to process and play the sound. We measured tap to feedback delay (about 270 ms).
+    # This includes delay from sensor to computer + delay to process and play sound. Therefore we estimate delay from sensor to computer
+    # subtract it from measured value tap to feedback which should leave us with processing and play time.
+
+    # delay to process and play sound.
+    delay_val = delay_val - ems_constants.delay_reduction 
+    if ems_constants.sound_feedback_mode_flag == 1:
+        delay_val = delay_val + ems_constants.sound_feedback_time_length
+
 
     metronome_times_adjusted = [round(i+delay_val) for i in metronome_times_out]
     phase_change_times_adjusted = [round(i+delay_val) for i in phase_change_times]
@@ -987,7 +1008,7 @@ def play_rhythm_new(ems_serial, contact_ser, actual_stim_length, rhythm_substr, 
     audio_times_dont_play = [round(i+delay_val) for i in audio_times_dont_play]
 
 
-    phase_change_times_final = [i - ems_constants.phase_change_warnings_delay for i in phase_change_times] # adjust phase change warning times to one second before phase change!
+    phase_change_times_final = [i - ems_constants.phase_change_warnings_delay for i in phase_change_times_adjusted] # adjust phase change warning times to one second before phase change!
 
 
 # total eighthnotes in count in, audio display, and rhythm display (EMS+audio)
