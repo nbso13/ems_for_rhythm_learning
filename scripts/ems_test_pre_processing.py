@@ -17,6 +17,7 @@ import pandas as pd
 from scipy import signal
 import os
 import time
+from ems_test_analysis import pull_repeat_times
 
 def sine_generator(fs, sinefreq, duration):
     T = duration
@@ -561,6 +562,9 @@ if __name__ == '__main__':
                 surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, contact_x_interped, ems_constants.analysis_sample_period)
 
                 surpressed_contact_trace, audio_trace = surpress(audio_trace, surpressed_contact_trace)
+
+                repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
+                plot_each_repeat(repeat_times)
 
                 #examine spiking
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"

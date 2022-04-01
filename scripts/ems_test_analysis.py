@@ -124,14 +124,14 @@ def plot_traces(x_array, trace_list, samp_period, legend_labels, title):
     plt.draw()
     plt.pause(0.01)
 
-def earth_movers_distance(spike_times_a, spike_times_b, rhythm_trace_a, rhythm_trace_b):
+def earth_movers_distance(spike_times_a, spike_times_b):
     
     rhythm_total_spike_times_a = len(spike_times_a)
     rhythm_total_spike_times_b = len(spike_times_b)
-    if rhythm_total_spike_times_a == 0:
-        return -1
-    cumulative_a = np.cumsum(np.divide(rhythm_trace_a, rhythm_total_spike_times_a))
-    cumulative_b = np.cumsum(np.divide(rhythm_trace_b, rhythm_total_spike_times_b))
+    # if rhythm_total_spike_times_a == 0:
+    #     return -1
+    # cumulative_a = np.cumsum(np.divide(rhythm_trace_a, rhythm_total_spike_times_a))
+    # cumulative_b = np.cumsum(np.divide(rhythm_trace_b, rhythm_total_spike_times_b))
     # same thing as np.sum(np.abs(np.subtract(cumulative_a, cumulative_b))),
     return  scipy.stats.wasserstein_distance(spike_times_a, spike_times_b)
 
@@ -175,17 +175,14 @@ def determine_delays_list(rhythm_substr, bpm, header_dict):
         list_of_delays.append(last_time + header_dict['phase_repeats_list'][i] * len_rhythm_ms) #get the number of repeats and find the length in time in ms and add it on
     return list_of_delays, len_rhythm_ms
         
-def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
+def chop_traces(k, surpressed_contact_onset_times,  audio_onset_times, delays_list, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
-    loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
+    loop_end = delays_list[k+1] + 2 * 30000/bpm #include two eighthnote after as well
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
     audio_bool = np.logical_and((audio_onset_times >= loop_begin), (audio_onset_times <= loop_end)) # select audio onset times during this loop of rhythm
     spike_times_contact = surpressed_contact_onset_times[contact_bool] - loop_begin # how many spikes total?
     spike_times_audio = audio_onset_times[audio_bool] - loop_begin
-    trace_selector_bool = np.logical_and((x_values >= loop_begin), (x_values <= loop_end)) # which indices in traces are during this loop?
-    contact_trace_selected = surpressed_contact_trace[trace_selector_bool] # pick those data points from suprpressed contact trace
-    audio_trace_selected = audio_trace[trace_selector_bool] # pick those data points from audio trace
-    return spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool
+    return spike_times_contact, spike_times_audio
 
 def chop_onsets(k, contact_times, audio_times, delays_list, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
@@ -215,6 +212,54 @@ def histo_intervals(gt_intervals):
     ax.set_xlabel('Interval length, ms')
     ax.set_title("interval frequency")
     return
+
+def pull_repeat_times(first_audio, rhythm, bpm, block_repeats_list, block_flags):
+    # given the first audio onset time, the rhythm substr, the bpm, the blocks repeat list
+    # from the header dictionary, and the bloock_flags (usually all 1), returns 
+    # the repeat times where the rhythm is repeated.
+    summer = 0 # total number of repeats
+    for i in range(len(block_repeats_list)):
+        if block_flags[i]:
+            summer = summer + block_repeats_list[i]
+    eighthnote_length = 30000/bpm
+    rhythm_time = len(rhythm*eighthnote_length)
+    repeat_times = []
+    time_var = first_audio
+    for i in range(summer):
+        repeat_times.append(time_var)
+        time_var = time_var + rhythm_time
+    repeat_times.append(time_var) # book end
+    return repeat_times
+
+def pull_repeat_times_by_block(block_times_list, rhythm, bpm, block_repeats_list, block_flags):
+    repeat_times_by_block = []
+    for i in range(len(block_times_list) - 1): # bookended times
+        if block_flags[i]:
+            repeats = block_repeats_list[i]
+            this_block_repeat_times = pull_repeat_times(block_times_list[i], rhythm, bpm, [repeats], [1]) # pull times within this block
+            repeat_times_by_block.append(this_block_repeat_times)
+    return repeat_times_by_block
+
+def plot_each_block(rhythm, bpm, block_repeats_list, block_flags, block_times_list, \
+    surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, \
+        audio_trace, x_vec, raw_trace, x_times):
+    # pull all repeat times by block
+
+    # for each block
+    # wide wide subplot
+    # plot 
+    # 
+    # raw contact trace
+    # spiked contact trace just above spiked audio
+    # get repeats
+    # calculate emd mad and vad traces for each repeat, where x values are the middle of the repeat
+    # plot emd
+    # plot mad 
+    # plot vad
+
+
+
+    
 
 def load_data(file_stems):
     vars_and_headers = []
@@ -269,17 +314,17 @@ def count_intervals(rhyth_string):
     return intervs, unique_intervals, num_unique
     
 
-def get_scaled_asynchronies_by_interval_by_phase(rhythm_string, bpm, phase_change_times, audio_onset_times, contact_onset_times):
+def get_scaled_asynchronies_by_interval_by_time(rhythm_string, bpm, cut_times, audio_onset_times, contact_onset_times):
     # get unique intervals in this rhythm
     _, unique_intervals, num_unique  = count_intervals(rhythm_string)
     ms_per_eighthnote = 30000/bpm
     unique_intervals_ms = [i*ms_per_eighthnote for i in unique_intervals]
     # make a 3d matrix: first dim, phase, second interval.  third, user performance instance.
-    user_performance_matrix = [[[] for i in range(num_unique)] for j in range(len(phase_change_times)-1)]
+    user_performance_matrix = [[[] for i in range(num_unique)] for j in range(len(cut_times)-1)]
 
-    for i in range(len(phase_change_times)-1): # for every phase
+    for i in range(len(cut_times)-1): # for every phase -1 for bookend times
         # get the audio and the contact times in that phase
-        contact_times_chopped, audio_times_chopped = chop_onsets(i, contact_onset_times, audio_onset_times, phase_change_times, bpm)
+        contact_times_chopped, audio_times_chopped = chop_onsets(i, contact_onset_times, audio_onset_times, cut_times, bpm)
         # get the ground truth intervals and the user produced intervals in that phase
         ground_truth_intervals, user_intervals = accumulate_intervals(audio_times_chopped, contact_times_chopped)
         for j in range(len(ground_truth_intervals)): # for every ground truth interval
@@ -328,7 +373,7 @@ def emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_in
     xvec = np.arange(mini, maxi, samp_period)
     trace_a = spike_times_to_traces(times_a, samp_period, xvec, samp_period)
     trace_b = spike_times_to_traces(times_b, samp_period, xvec, samp_period)
-    emd = earth_movers_distance(times_a, times_b, trace_a, trace_b)
+    emd = earth_movers_distance(times_a, times_b)
     mad, vad = mad_vad(times_a, times_b, unique_intervals)
     mad_mean = np.mean(mad)
     vad_mean = np.mean(vad)
@@ -385,7 +430,7 @@ def teaserfigure():
         xvec = np.arange(mini, maxi, samp_period)
         trace_a = spike_times_to_traces(times_a, hold_length, xvec, samp_period)
         trace_b = spike_times_to_traces(times_b, hold_length, xvec, samp_period)
-        emds.append(earth_movers_distance(times_a, times_b, trace_a, trace_b))
+        emds.append(earth_movers_distance(times_a, times_b))
         axes[i].set_yticks([])
         axes[i].set_xticks([])
         axes[i].plot(xvec, trace_b+1)
@@ -504,8 +549,8 @@ def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_co
         var_lists.append(var_list) # now has each WK relevant variable for each phase
     return var_lists
 
-def MAD_VAD_per_phase_calc(rhythm, bpm, phase_change_times, audio_onset_times, contact_onset_times):
-    user_performance_matrix, unique_intervals_ms = get_scaled_asynchronies_by_interval_by_phase(rhythm, bpm, phase_change_times, audio_onset_times, contact_onset_times)
+def MAD_VAD_per_time_calc(rhythm, bpm, cut_times, audio_onset_times, contact_onset_times):
+    user_performance_matrix, unique_intervals_ms = get_scaled_asynchronies_by_interval_by_time(rhythm, bpm, cut_times, audio_onset_times, contact_onset_times)
     MAD_by_phase = []
     VAD_by_phase = []
     for i in range(len(user_performance_matrix)):
@@ -516,18 +561,29 @@ def MAD_VAD_per_phase_calc(rhythm, bpm, phase_change_times, audio_onset_times, c
         VAD_by_phase.append(np.std(flat_asynchs_by_interval))
     return MAD_by_phase, VAD_by_phase    
 
-def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
+# def emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
+#     distances_list = []
+#     for k in range(len(delays_list)-1): # for each phase
+#         spike_times_contact, spike_times_audio = chop_traces(k, \
+#             surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm)
+#         emd = earth_movers_distance(spike_times_contact, spike_times_audio) # run emd
+#         distances_list.append(emd) # add to appropriate list.
+#         title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
+#         # if count == 2:
+#             # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
+#     return np.array(distances_list)
+
+def emd_per_time_calc(contact_times, audio_times, cut_times, bpm):
     distances_list = []
-    for k in range(len(delays_list)-1): # for each phase
-        spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool = chop_traces(k, \
-            surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm)
-        emd = earth_movers_distance(spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected) # run emd
+    for k in range(len(cut_times)-1): # for each rime (-1 because two bookend times)
+        spike_times_contact, spike_times_audio = chop_onsets(k, \
+            contact_times, audio_times, cut_times, bpm)
+        emd = earth_movers_distance(spike_times_contact, spike_times_audio) # run emd
         distances_list.append(emd) # add to appropriate list.
-        title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
+        # title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
         # if count == 2:
             # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
     return np.array(distances_list)
-
 
 def bar_plot_scores(names, scores, errors, title, ylabel):
     fig, ax = plt.subplots()
@@ -765,7 +821,7 @@ if __name__ == '__main__':
                 
                 MAD_by_phase, VAD_by_phase = MAD_VAD_per_phase_calc(rhythm_substr, bpm, delays_list, audio_onset_times, surpressed_contact_onset_times)
                 
-                distances_array = emd_per_phase_calc(surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, contact_x_interped, bpm)
+                distances_array = emd_per_time_calc(surpressed_contact_onset_times, audio_onset_times, delays_list, bpm)
                 dist_array = np.copy(distances_array)
 
 
