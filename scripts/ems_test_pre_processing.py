@@ -18,6 +18,8 @@ from scipy import signal
 import os
 import time
 from ems_test_analysis import pull_repeat_times
+from ems_test_analysis import plot_each_block
+from ems_test_analysis import determine_delays_list
 
 def sine_generator(fs, sinefreq, duration):
     T = duration
@@ -177,20 +179,6 @@ def read_array_values(time_readings_length, variables_number, worksheet):
     audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
     return contact_x_values, reading_list, stim_onset_times, audio_onset_times
 
-def determine_delays_list(rhythm_substr, bpm, header_dict):
-    # determine the exact beginning timestamp (delays_list) for each phase (pre-ems audio, ems, post-ems audio, no audio)
-    len_rhythm_ms = len(rhythm_substr) * 30000/bpm #+ 75 ### tHIS IS SOMEHOW OFF BU ABOUT 75 MS?????
-    # warnings.warn("Adding 75 ms to rhythm length for unknown reason?")
-    if header_dict['metronome_intro_flag'] == 1:
-        len_count_off_ms = len(header_dict['count_in_substr']) * 30000/bpm  # this is the three second count in
-    else:
-        len_count_off_ms = 0 # 
-
-    list_of_delays = [len_count_off_ms] # first phase begins after count off
-    for i in range(header_dict['num_phases']): # for every phase, find the end of the phase and tack it on.
-        last_time = list_of_delays[-1] # get the last time (end of last phase, beginning of this one)
-        list_of_delays.append(last_time + header_dict['phase_repeats_list'][i] * len_rhythm_ms) #get the number of repeats and find the length in time in ms and add it on
-    return list_of_delays, len_rhythm_ms
         
 def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
@@ -473,7 +461,8 @@ if __name__ == '__main__':
     # filter_test()
 
     # file_stems =  ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
-    file_stems =  ['2022_03_27_13_56_12_pp5']
+    # file_stems =  ['2022_03_27_13_56_12_pp5']
+    file_stems = ['2022_03_31_13_19_05_pp7']
 
 
     ### load data ###
@@ -519,6 +508,7 @@ if __name__ == '__main__':
 
             bpms = header_dict['bpms'] # for each bpm
             for bpm_index in range(len(bpms)):
+                
                 bpm = bpms[bpm_index]
                 worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}_bpm{bpm}"]
                 time_readings_length = count_time_readings(worksheet)
@@ -537,6 +527,10 @@ if __name__ == '__main__':
                 audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, ems_constants.analysis_sample_period)
                 first_audio = audio_onset_times[0]
                 last_audio = audio_onset_times[-1]
+
+                # get delays list 
+                delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict, first_audio)
+
                 # EXAMINE DATA
 
                 # interpolated
@@ -564,7 +558,9 @@ if __name__ == '__main__':
                 surpressed_contact_trace, audio_trace = surpress(audio_trace, surpressed_contact_trace)
 
                 repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
-                plot_each_repeat(repeat_times)
+
+                plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
+                    surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values)
 
                 #examine spiking
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
@@ -584,7 +580,7 @@ if __name__ == '__main__':
                     "audio_trace" : audio_trace
                 }
                 processed_var_lists_by_bpm.append(var_dict)
-                delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict)
+                
                 
                 ## check delays markers
                 # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \

@@ -40,21 +40,24 @@ alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea",
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
 # rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
-rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
+# rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
+rhythm_strings = [random_four_march_22] 
 # rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
 # rhythm_strings_names = ['to_the_beat_substr_1', 'flip_the_beat_1', 'random_three_march_22_1', 'random_four_march_22_1', 'to_the_beat_substr_2', 'flip_the_beat_2',  'random_three_march_22_2', 'random_four_march_22_2'] 
-rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
+# rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
+rhythm_strings_names = ['random_four_march_22']
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
 # bpms = [100, 160, 140, 120] # shuffled  
-bpms = [130, 135]
+# bpms = [130, 135]
+bpms = [130]
 # repeats = 4 # ems and audio period repeats
 # audio_repeats = 4
 # post_ems_repeats = 4 # how many post ems repeats
@@ -71,7 +74,7 @@ phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
 phase_repeats_list = [8, 4, 7, 1, 4] # repeats at each phase
 demo_phase_repeats_list = [5, 3, 4, 1, 3] # repeats at each phase
 phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
-phase_warning_strs =  ["TRAINING", "METRONOME TESTING", "EXPERIMENTAL TRAINING", "AUDIO ADJUST PHASE", "METRONOME TESTING"] # name phases
+phase_warning_strs =  ["TRAINING", "METRONOME TESTING", "EXPERIMENTAL TRAINING", "AUDIO ADJUST BLOCK", "METRONOME TESTING"] # name phases
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
 ems_on_flags = [0, 0, 1, 0, 0]
@@ -87,7 +90,7 @@ contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms is there some measurement of sensor to computer delay??
-port_contact = '/dev/cu.usbmodem11201'
+port_contact = '/dev/cu.usbmodem1201'
 port_ems = '/dev/tty.usbserial-18DNB483'
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet

@@ -349,7 +349,7 @@ def read_contact_trace(ser, len_rhythm_presentation_ms, samp_period_ms, readings
                 readings_list.append(int(out[:-2]))
                 x_values_list.append(1000*(time_measured-time_naught_contact_trace)) #from seconds to milliseconds
 
-            if (unplayed == False and time_measured > 0.05 + play_time) and (np.mean(readings_list[-10:-1]) < ems_constants.baseline_subtractor): 
+            if (unplayed == False and time_measured > 0.2 + play_time) and (np.mean(readings_list[-10:-1]) < ems_constants.baseline_subtractor): 
                 # if playability locked and more than half a second passed since play
                 unplayed = True #unlock playability
                 tap_tone.stop() # stop playing.
