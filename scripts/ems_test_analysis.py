@@ -18,6 +18,12 @@ from scipy import signal
 import os
 import time
 from math import log10, floor
+from dtaidistance import dtw
+
+
+def dtw_trace_distance(seq_1, seq_2):
+    distance = dtw.distance(seq_1, seq_2)
+    return distance
 
 def round_sig(x, sig=2):
     return round(x, sig-int(floor(log10(abs(x))))-1)
@@ -172,7 +178,7 @@ def determine_delays_list(rhythm_substr, bpm, header_dict, first_audio):
         
 def chop_traces(k, contact_trace,  audio_trace, x_vec, times_list, bpm):
     loop_begin = times_list[k] - 0.5*30000/bpm #include half an eighthnote before
-    loop_end = times_list[k+1] + 2 * 30000/bpm #include two eighthnote after as well
+    loop_end = times_list[k+1] + 0.5 * 30000/bpm #include half eigthnote after as well
     select_bool = np.logical_and((x_vec >= loop_begin), (x_vec <= loop_end)) # select contact onset times during this loop of rhythm
     audio_selected_trace = audio_trace[select_bool]
     contact_selected_trace = contact_trace[select_bool]
@@ -181,11 +187,11 @@ def chop_traces(k, contact_trace,  audio_trace, x_vec, times_list, bpm):
 
 def chop_onsets(k, contact_times, audio_times, delays_list, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
-    loop_end = delays_list[k+1] + 2 * 30000/bpm #include half an eighthnote after as well
+    loop_end = delays_list[k+1] - 0.5*30000/bpm #include half an eighthnote after as well
     contact_bool = np.logical_and((contact_times >= loop_begin), (contact_times <= loop_end)) # select contact onset times during this loop of rhythm
     audio_bool = np.logical_and((audio_times >= loop_begin), (audio_times <= loop_end)) # select audio onset times during this loop of rhythm
-    spike_times_contact = contact_times[contact_bool] - loop_begin # how many spikes total?
-    spike_times_audio = audio_times[audio_bool] - loop_begin
+    spike_times_contact = contact_times[contact_bool] # how many spikes total?
+    spike_times_audio = audio_times[audio_bool]
     return spike_times_contact, spike_times_audio 
 
 def load_headers(file_stems):
@@ -237,12 +243,22 @@ def pull_repeat_times_by_block(block_times_list, rhythm, bpm, block_repeats_list
 
 def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, block_times_list, \
     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, \
-        audio_trace, x_vec, raw_contact_trace, raw_x_vec):
+        audio_trace, x_vec, raw_contact_trace, raw_x_vec, processed_contact_trace, processed_x_vec, y_axis_mins=0, y_axis_maxes=0):
+
+    mad_per_block, vad_per_block, = MAD_VAD_per_time_calc(rhythm, bpm, block_times_list, audio_onset_times, surpressed_contact_onset_times)
+    emd_per_block = emd_per_time_calc(surpressed_contact_onset_times, audio_onset_times, block_times_list, bpm)
+    twd_per_block = twd_per_time_calc(surpressed_contact_trace, audio_trace, x_vec, block_times_list, bpm)
     block_names = ems_constants.phase_warning_strs
     repeat_times_by_block = pull_repeat_times_by_block(block_times_list, rhythm, bpm, block_repeats_list, block_flags)
+    emds_by_block_by_repeat = []
+    twds_by_block_by_repeat = []
+    mads_by_block_by_repeat = [] 
+    vads_by_block_by_repeat = []
+
+
     for i in range(len(block_repeats_list)):
         if block_flags[i]:
-            fig, axes = plt.subplots(5,1)
+            fig, axes = plt.subplots(7,1)
             fig.set_size_inches(13, 8)
 
             title = f"{rhythm_name}: {rhythm}," + f"bpm: {bpm}, block: {block_names[i]}"
@@ -250,45 +266,90 @@ def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, b
 
             raw_contact_trace_selected, _, raw_x_trace_selected = chop_traces(i, raw_contact_trace,  \
                 raw_contact_trace, raw_x_vec, block_times_list, bpm) # raw contact is double input because not used and need to fit the dimensions.
+            processed_contact_trace_selected, _, processed_x_vec_selected = chop_traces(i, processed_contact_trace,  \
+                processed_contact_trace, processed_x_vec, block_times_list, bpm) # raw contact is double input because not used and need to fit the dimensions.
             
-            axes[0].plot(raw_x_trace_selected, raw_contact_trace_selected)
-            axes[0].set_ylabel("contact trace value")
-            axes[0].set_title("Raw recorded contact trace")
+            ind = 0
+            axes[ind].plot(raw_x_trace_selected, raw_contact_trace_selected)
+            axes[ind].set_ylabel("contact trace value")
+            axes[ind].set_title("Raw recorded contact trace")
+
+            ind+=1
+            axes[ind].plot(processed_x_vec_selected, processed_contact_trace_selected)
+            # axes[ind].set_ylabel("contact trace value")
+            axes[ind].set_title("Processed contact trace")
+            # axes[ind].sharex(axes[ind-1])
             
+            ind+=1
             spikes_contact_trace_selected, spikes_audio_trace_selected, x_vec_selected = chop_traces(i, surpressed_contact_trace,  \
                 audio_trace, x_vec, block_times_list, bpm)
-            axes[1].set_title("Processed spikes versus audio onsets")
-            axes[1].set_yticks([])
-            axes[1].plot(x_vec_selected, (spikes_contact_trace_selected + 1))
-            axes[1].plot(x_vec_selected, spikes_audio_trace_selected)
-            axes[1].legend("contact spikes", "audio spikes")
+            axes[ind].set_title("Processed spikes versus audio onsets")
+            axes[ind].set_yticks([])
+            axes[ind].plot(x_vec_selected, (spikes_contact_trace_selected + 1))
+            axes[ind].plot(x_vec_selected, spikes_audio_trace_selected)
+            axes[ind].legend("contact spikes", "audio spikes")
+
 
             repeat_times = repeat_times_by_block[i]
-            contact_onsets_selected, audio_onsets_selected = chop_onsets(i,surpressed_contact_onset_times, audio_onset_times, repeat_times, bpm)
-            mad_per_repeat, vad_per_repeat = MAD_VAD_per_time_calc(rhythm, bpm, repeat_times, contact_onsets_selected, audio_onsets_selected)
+            # for time in repeat_times:
+                # axes[1].axvline(time, linewidth=2, color='g')
+            contact_trace_selected, audio_trace_selected = chop_traces(i,surpressed_contact_trace, audio_trace, block_times_list, bpm)
+            contact_onsets_selected, audio_onsets_selected = chop_onsets(i,surpressed_contact_onset_times, audio_onset_times, block_times_list, bpm)
+            mad_per_repeat, vad_per_repeat = MAD_VAD_per_time_calc(rhythm, bpm, repeat_times, audio_onsets_selected, contact_onsets_selected)
             emd_per_repeat = emd_per_time_calc(contact_onsets_selected, audio_onsets_selected, repeat_times, bpm)
+            twd_per_repeat = twd_per_time_calc(contact_trace_selected, audio_trace_selected, repeat_times, bpm)
+            
+            emds_by_block_by_repeat.append(emd_per_repeat)
+            twds_by_block_by_repeat.append(twd_per_repeat)
+            mads_by_block_by_repeat.append(mad_per_repeat)
+            vads_by_block_by_repeat.append(vad_per_repeat)
             mid_repeat_x_val = []
             for j in range(len(repeat_times)-1):
                 x_val = (repeat_times[j] + repeat_times[j+1])/2
                 mid_repeat_x_val.append(x_val)
             
-            axes[2].set_title("emd per repeat")
-            axes[2].plot(mid_repeat_x_val, emd_per_repeat, color='red')
+            normed_emd = emd_per_block[i]/block_repeats_list[i]
+            ind+=1
+            axes[ind].set_title("Earth Mover's Distance per repeat")
+            axes[ind].plot(mid_repeat_x_val, emd_per_repeat, color='red')
+            axes[ind].axhline(normed_emd, color='r')
+            axes[ind].sharex(axes[ind-1])
+            if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                axes[ind].set_ylim([y_axis_mins['emds'],y_axis_maxes['emds']])
+
+            ind+=1
+            axes[ind].set_title("Time Warp Distance per repeat")
+            axes[ind].plot(mid_repeat_x_val, twd_per_repeat, color='orange')
+            axes[ind].axhline( color='r')
+            axes[ind].sharex(axes[ind-1])
+            if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                axes[ind].set_ylim([y_axis_mins['twds'],y_axis_maxes['twds']])
             
-            axes[3].set_title("emd per repeat")
-            axes[3].plot(mid_repeat_x_val, mad_per_repeat, color='blue')
+            ind+=1
+            axes[ind].set_title("Mean of Asynch Distribution per repeat")
+            axes[ind].plot(mid_repeat_x_val, mad_per_repeat, color='blue')
+            axes[ind].axhline(mad_per_block[i], color='b')
+            axes[ind].set_ylabel("Fraction of interval")
+            axes[ind].sharex(axes[ind-1])
+            if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                axes[ind].set_ylim([y_axis_mins['mads'],y_axis_maxes['mads']])
 
-            axes[4].set_title("emd per repeat")
-            axes[4].plot(mid_repeat_x_val, vad_per_repeat, color='green')
-
+            ind+=1
+            axes[ind].set_title("Variance of Asynch Distribution per repeat")
+            axes[ind].plot(mid_repeat_x_val, vad_per_repeat, color='green')
+            axes[ind].axhline(vad_per_block[i], color='g')
+            axes[ind].sharex(axes[ind-1])
+            axes[ind].set_xlabel("time (ms)")
+            if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                axes[ind].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
             plt.tight_layout()
 
             
 
-            plt.show()
-            input("continue?")
-    return
-
+            # plt.show()
+            # input("continue?")
+    return emds_by_block_by_repeat, twds_by_block_by_repeat, mads_by_block_by_repeat, vads_by_block_by_repeat
+ 
 
 
 
@@ -354,7 +415,7 @@ def get_scaled_asynchronies_by_interval_by_time(rhythm_string, bpm, cut_times, a
     _, unique_intervals, num_unique  = count_intervals(rhythm_string)
     ms_per_eighthnote = 30000/bpm
     unique_intervals_ms = [i*ms_per_eighthnote for i in unique_intervals]
-    # make a 3d matrix: first dim, phase, second interval.  third, user performance instance.
+    # make a 3d matrix: first dim, block, second, interval.  third, user performance instance.
     user_performance_matrix = [[[] for i in range(num_unique)] for j in range(len(cut_times)-1)]
 
     for i in range(len(cut_times)-1): # for every phase -1 for bookend times
@@ -408,14 +469,15 @@ def emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_in
     xvec = np.arange(mini, maxi, samp_period)
     trace_a = spike_times_to_traces(times_a, samp_period, xvec, samp_period)
     trace_b = spike_times_to_traces(times_b, samp_period, xvec, samp_period)
+    twd = dtw_trace_distance(trace_a, trace_b)
     emd = earth_movers_distance(times_a, times_b)
     mad, vad = mad_vad(times_a, times_b, unique_intervals)
     mad_mean = np.mean(mad)
     vad_mean = np.mean(vad)
-    title = title + f", emd = {round_sig(emd, 3)}, \n mad = {round_sig(mad_mean, 3)}, \n vad = {round_sig(vad_mean, 3)}"
+    title = title + f", emd = {round_sig(emd, 3)}, \n twd = {round_sig(twd, 3)}, \n mad = {round_sig(mad_mean, 3)}, \n vad = {round_sig(vad_mean, 3)}"
     plot_traces(xvec, [trace_a, trace_b], samp_period, ["a", "b"], title)
     plt.tight_layout()
-    return emd, mad, vad
+    return emd, twd, mad, vad
 
 def filter_test():
     fps = 30
@@ -506,14 +568,16 @@ def emd_tests():
             [1.1, 2.1, 3.1, 3.5, 4.1, 4.5, 5.1 ], [1.1, 2.1, 3.1, 4.1, 4.9, 5.1], [1.1, 2.1, 3.1, 3.2, 4.1, 5.1]]
 
     emds = []
+    twds = []
     MADs = []
     VADs = []
     unique_intervals = [1]
     for i in range(len(times_bs)):
         times_b = times_bs[i]
         title = titles[i]
-        emd, MAD, VAD = emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_intervals)
+        emd, twd, MAD, VAD = emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_intervals)
         emds.append(emd)
+        twds.append(twd)
         
         MADs.append(MAD[0])
         VADs.append(VAD[0])
@@ -531,8 +595,13 @@ def emd_tests():
     axes[2].set_xticklabels(titles)
     axes[2].set_title("Bar plot for VADs across tests")
     axes[2].set_ylabel("VAD")
+
+    axes[3].set_xticks(np.arange(len(titles)))
+    axes[3].set_xticklabels(titles)
+    axes[3].set_title("Bar plot for TWDs across tests")
+    axes[3].set_ylabel("TWD")
     plt.xticks(rotation=30, ha="right")
-    axes[2].bar(np.arange(len(titles)), VADs, align='center')
+    axes[2].bar(np.arange(len(titles)), twds, align='center')
     plt.tight_layout()
     return 
 
@@ -613,8 +682,23 @@ def emd_per_time_calc(contact_times, audio_times, cut_times, bpm):
     for k in range(len(cut_times)-1): # for each rime (-1 because two bookend times)
         spike_times_contact, spike_times_audio = chop_onsets(k, \
             contact_times, audio_times, cut_times, bpm)
+        if len(spike_times_audio) == 0 or len(spike_times_contact) == 0:
+            pause_here = True
         emd = earth_movers_distance(spike_times_contact, spike_times_audio) # run emd
         distances_list.append(emd) # add to appropriate list.
+        # title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
+        # if count == 2:
+            # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)
+    return np.array(distances_list)
+
+def twd_per_time_calc(contact_trace, audio_trace, x_vec, cut_times, bpm):
+    distances_list = []
+    for k in range(len(cut_times)-1): # for each rime (-1 because two bookend times)
+        spike_trace_contact, spike_trace_audio = chop_traces(k, contact_trace, audio_trace, x_vec, cut_times, bpm)
+        if len(spike_trace_audio) == 0 or len(spike_trace_contact) == 0:
+            pause_here = True
+        twd = dtw_trace_distance(spike_trace_contact, spike_trace_audio) # run emd
+        distances_list.append(twd) # add to appropriate list.
         # title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
         # if count == 2:
             # plot_traces(x_vec[trace_selector_bool], [contact_trace_selected, audio_trace_selected], header_dict["samp_period_ms"], ["contact", "audio"], title)

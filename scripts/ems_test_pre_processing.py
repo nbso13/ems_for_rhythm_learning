@@ -445,6 +445,84 @@ def bar_plot_scores(names, scores, errors, title, ylabel):
     ax.bar(np.arange(len(scores)), scores, yerr=errors, align='center')
     plt.tight_layout()
 
+def trace_surpress(reading_list, x_times, memory_ms): # for every time point along the trace,
+    # if the mean of the past memory ms is above the threshold, contact was quite recent and this index should be 0'd
+    x_times_array = np.array(x_times)
+    reading_list_array = np.array(reading_list)
+    more_than_thresh_bool = reading_list_array > ems_constants.baseline_subtractor
+    indices = np.arange(len(x_times_array))
+    indices_selected = indices[more_than_thresh_bool]
+    x_times_more_than_thresh = x_times_array[more_than_thresh_bool]
+    for time_index in range(len(x_times_more_than_thresh)):
+        # this is as far back in time to go
+        past_to_examine = x_times_more_than_thresh[time_index] - memory_ms
+        # these are the time indices in that range. might be empty!
+        times_in_that_range_bool = np.logical_and((x_times_array > past_to_examine), \
+            (x_times_array < x_times_more_than_thresh[time_index]))
+        # these are the readings in that range
+        readings_in_that_range = reading_list_array[times_in_that_range_bool]
+        # if no readings in that ranage continue.
+        if len(readings_in_that_range) == 0:
+            continue
+        else:
+            # otherwise, calculate the mean and see if it is above baseline subtractor.
+            before_mean = np.mean(readings_in_that_range)
+            if before_mean > ems_constants.baseline_subtractor/3:
+                # if so, surpress this index for reading_list
+                ind = indices_selected[time_index]
+                reading_list[ind] = 0
+    return reading_list
+
+def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_axis_maxes=0, y_axis_mins=0):
+    mean_emds = [np.mean(repeat_scores) for repeat_scores in emds]
+    std_emd = [np.std(repeat_scores) for repeat_scores in emds]
+    mean_twds = [np.mean(repeat_scores) for repeat_scores in twds]
+    std_twd = [np.std(repeat_scores) for repeat_scores in twds]
+    mean_mad = [np.mean(repeat_scores) for repeat_scores in mads]
+    std_mad = [np.std(repeat_scores) for repeat_scores in mads]
+    mean_vad =  [np.mean(repeat_scores) for repeat_scores in vads]
+    std_vad = [np.std(repeat_scores) for repeat_scores in vads]
+    fig, axes = plt.subplots(3,1)
+    title = f"{name}: {rhythm}," + f" bpm: {bpm}"
+    fig.suptitle(title)
+    axes[0].scatter(np.arange(len(mean_emds)), mean_emds, color='r')
+    axes[0].set_ylabel("Mean EMD")
+    axes[0].set_xticks(np.arange(len(mean_emds)))
+    axes[0].set_xticklabels([])
+    axes[0].errorbar(np.arange(len(mean_emds)), mean_emds, yerr=std_emd, fmt="o", color='r')
+    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+        axes[0].set_ylim([y_axis_mins['emds'],y_axis_maxes['emds']])
+    axes[1].scatter(np.arange(len(mean_twds)), mean_twds, color='orange')
+    axes[1].set_ylabel("Mean TWD")
+    axes[1].set_xticks(np.arange(len(mean_twds)))
+    axes[1].set_xticklabels([])
+    axes[1].errorbar(np.arange(len(mean_twds)), mean_twds, yerr=std_twd, fmt="o", color='orange')
+    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+        axes[1].set_ylim([y_axis_mins['twds'],y_axis_maxes['twds']])
+    axes[2].scatter(np.arange(len(mean_mad)), mean_mad, color='b')
+    axes[2].set_ylabel("Mean MAD")
+    axes[2].set_xticks(np.arange(len(mean_mad)))
+    axes[2].errorbar(np.arange(len(mean_mad)), mean_mad, yerr=std_mad, fmt="o", color='b')
+    axes[2].set_xticklabels([])
+    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+        axes[2].set_ylim([y_axis_mins['mads'],y_axis_maxes['mads']])
+    axes[3].scatter(np.arange(len(mean_vad)), mean_vad, color='g')
+    axes[3].errorbar(np.arange(len(mean_vad)), mean_vad, yerr=std_vad, fmt="o", color='g')
+    axes[3].set_ylabel("Mean VAD")
+    axes[3].set_xticks(np.arange(len(mean_vad)))
+    axes[3].set_xticklabels(block_labels, rotation=45, ha='right')
+    axes[3].set_xlabel("Experimental block")
+    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+        axes[3].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
+    plt.tight_layout()
+    plt.show()
+    input("continue?")
+    return [axes[0].get_ylim(), axes[1].get_ylim(), axes[2].get_ylim(), axes[3].get_ylim()]
+
+
+
+
+
 
 # def cluster_intervals(num_intervals, gt_intervals)
 # _____________________________________________________
@@ -518,6 +596,7 @@ if __name__ == '__main__':
                 cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
                 cutoff_freq_high = ems_constants.cutoff_freq_high
                 contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, ems_constants.analysis_sample_period)
+                reading_list_interped = trace_surpress(reading_list_interped, contact_x_interped, ems_constants.memory_ms)
                 # reading_list_filtered = butter_band_pass_filter(contact_x_interped, reading_list_interped, cutoff_freq_low, cutoff_freq_high, header_dict['samp_period_ms'], plot_flag=0)
             
                 ## preprocessing
@@ -559,8 +638,10 @@ if __name__ == '__main__':
 
                 repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
 
-                plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
-                    surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values)
+                emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
+                    surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values, reading_list_interped, contact_x_interped)
+
+                y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
 
                 #examine spiking
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
@@ -598,6 +679,9 @@ if __name__ == '__main__':
                     title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check spikes"
                     plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
                         x_vec[bool_selector], ems_constants.analysis_sample_period, legend_labels, title_str)
+
+
+        
             
 
         print(f"dumping {file_stems[session_number]}.")
