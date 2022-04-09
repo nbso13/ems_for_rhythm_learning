@@ -20,6 +20,7 @@ import time
 from ems_test_analysis import pull_repeat_times
 from ems_test_analysis import plot_each_block
 from ems_test_analysis import determine_delays_list
+from ems_test_analysis import plot_test_blocks
 
 def sine_generator(fs, sinefreq, duration):
     T = duration
@@ -473,54 +474,6 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
                 reading_list[ind] = 0
     return reading_list
 
-def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_axis_maxes=0, y_axis_mins=0):
-    mean_emds = [np.mean(repeat_scores) for repeat_scores in emds]
-    std_emd = [np.std(repeat_scores) for repeat_scores in emds]
-    mean_twds = [np.mean(repeat_scores) for repeat_scores in twds]
-    std_twd = [np.std(repeat_scores) for repeat_scores in twds]
-    mean_mad = [np.mean(repeat_scores) for repeat_scores in mads]
-    std_mad = [np.std(repeat_scores) for repeat_scores in mads]
-    mean_vad =  [np.mean(repeat_scores) for repeat_scores in vads]
-    std_vad = [np.std(repeat_scores) for repeat_scores in vads]
-    fig, axes = plt.subplots(3,1)
-    title = f"{name}: {rhythm}," + f" bpm: {bpm}"
-    fig.suptitle(title)
-    axes[0].scatter(np.arange(len(mean_emds)), mean_emds, color='r')
-    axes[0].set_ylabel("Mean EMD")
-    axes[0].set_xticks(np.arange(len(mean_emds)))
-    axes[0].set_xticklabels([])
-    axes[0].errorbar(np.arange(len(mean_emds)), mean_emds, yerr=std_emd, fmt="o", color='r')
-    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-        axes[0].set_ylim([y_axis_mins['emds'],y_axis_maxes['emds']])
-    axes[1].scatter(np.arange(len(mean_twds)), mean_twds, color='orange')
-    axes[1].set_ylabel("Mean TWD")
-    axes[1].set_xticks(np.arange(len(mean_twds)))
-    axes[1].set_xticklabels([])
-    axes[1].errorbar(np.arange(len(mean_twds)), mean_twds, yerr=std_twd, fmt="o", color='orange')
-    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-        axes[1].set_ylim([y_axis_mins['twds'],y_axis_maxes['twds']])
-    axes[2].scatter(np.arange(len(mean_mad)), mean_mad, color='b')
-    axes[2].set_ylabel("Mean MAD")
-    axes[2].set_xticks(np.arange(len(mean_mad)))
-    axes[2].errorbar(np.arange(len(mean_mad)), mean_mad, yerr=std_mad, fmt="o", color='b')
-    axes[2].set_xticklabels([])
-    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-        axes[2].set_ylim([y_axis_mins['mads'],y_axis_maxes['mads']])
-    axes[3].scatter(np.arange(len(mean_vad)), mean_vad, color='g')
-    axes[3].errorbar(np.arange(len(mean_vad)), mean_vad, yerr=std_vad, fmt="o", color='g')
-    axes[3].set_ylabel("Mean VAD")
-    axes[3].set_xticks(np.arange(len(mean_vad)))
-    axes[3].set_xticklabels(block_labels, rotation=45, ha='right')
-    axes[3].set_xlabel("Experimental block")
-    if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-        axes[3].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
-    plt.tight_layout()
-    plt.show()
-    input("continue?")
-    return [axes[0].get_ylim(), axes[1].get_ylim(), axes[2].get_ylim(), axes[3].get_ylim()]
-
-
-
 
 
 
@@ -571,6 +524,20 @@ if __name__ == '__main__':
         repeat_list = header_dict['phase_repeats_list']
         
         processed_vars_by_rhythm = []
+
+        y_axis_maxes = {
+            'mads': 0.5,
+            'vads': 0.2,
+            'emds': 400,
+            'twds' : 100
+        }
+
+        y_axis_mins = {
+            'mads': 0,
+            'vads': 0,
+            'emds': 0,
+            'twds' : 0
+        }
 
         # doing preprocessing FOR EACH RHYTHM separately.
 
