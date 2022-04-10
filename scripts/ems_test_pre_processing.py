@@ -493,7 +493,7 @@ if __name__ == '__main__':
 
     # file_stems =  ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
     # file_stems =  ['2022_03_27_13_56_12_pp5']
-    file_stems = ['2022_03_31_13_19_05_pp7']
+    file_stems = ['2022_03_30_13_23_09_pp7', '2022_03_31_13_19_05_pp7', '2022_04_01_13_30_32_pp7']
 
 
     ### load data ###
@@ -581,7 +581,7 @@ if __name__ == '__main__':
 
                 # interpolated
                 legend_labels = ['contact', 'stim', 'audio']
-                title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
+                title_str = f"pp {file_stems[0][-3:-1]}, session number {session_number}, {header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
                 view_window_begin = 40000
                 view_window_end = -1
                 # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \

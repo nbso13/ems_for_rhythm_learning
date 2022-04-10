@@ -662,9 +662,11 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
     axes[3].set_xlabel("Experimental block")
     if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
         axes[3].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
+
     plt.tight_layout()
-    plt.show()
-    input("continue?")
+    plt.draw()
+    plt.pause(0.001)
+    input("Press [enter] to continue.")
     return [axes[0].get_ylim(), axes[1].get_ylim(), axes[2].get_ylim(), axes[3].get_ylim()]
 
 
