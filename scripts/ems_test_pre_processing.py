@@ -493,7 +493,8 @@ if __name__ == '__main__':
 
     # file_stems =  ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
     # file_stems =  ['2022_03_27_13_56_12_pp5']
-    file_stems = ['2022_03_30_13_23_09_pp7', '2022_03_31_13_19_05_pp7', '2022_04_01_13_30_32_pp7']
+    file_stems = [  '2022_04_02_17_28_41_pp9', '2022_04_02_17_31_11_pp9', '2022_04_03_13_44_57_pp9', \
+        '2022_04_03_13_51_14_pp98', '2022_04_09_11_44_27_pp10', '2022_04_09_12_08_53_pp10', '2022_04_10_11_48_13_pp10', '2022_04_10_12_23_50_pp10']
 
 
     ### load data ###
@@ -581,7 +582,7 @@ if __name__ == '__main__':
 
                 # interpolated
                 legend_labels = ['contact', 'stim', 'audio']
-                title_str = f"pp {file_stems[0][-3:-1]}, session number {session_number}, {header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
+                title_str = f"pp {file_stems[session_number][-3:-1]}, session number {session_number}, {header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
                 view_window_begin = 40000
                 view_window_end = -1
                 # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \
@@ -605,10 +606,10 @@ if __name__ == '__main__':
 
                 repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
 
-                emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
-                    surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values, reading_list_interped, contact_x_interped)
+                # emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
+                #     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values, reading_list_interped, contact_x_interped)
 
-                y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
+                # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
 
                 #examine spiking
                 # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"

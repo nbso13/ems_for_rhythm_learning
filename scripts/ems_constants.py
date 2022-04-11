@@ -40,16 +40,16 @@ alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea",
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
 # rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
-rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
-# rhythm_strings = [random_five] 
+# rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
+rhythm_strings = [random_five] 
 # rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
 # rhythm_strings_names = ['to_the_beat_substr_1', 'flip_the_beat_1', 'random_three_march_22_1', 'random_four_march_22_1', 'to_the_beat_substr_2', 'flip_the_beat_2',  'random_three_march_22_2', 'random_four_march_22_2'] 
-rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
-# rhythm_strings_names = ['random_five']
+# rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
+rhythm_strings_names = ['random_five']
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
@@ -117,7 +117,9 @@ anchor_stat = {
 counter_balanced_number_dict = {
     "1" : "actuating-EMS",
     "2" : "tactile-EMS",
-    "3" : "no-EMS"
+    "3" : "no-EMS",
+    "4" : "audio pre-test",
+    '' : "no given condition..."
 }
 
 buffer_time_after = 50 # ms. the time after a given audio onset to look for contact onsets to estimate user performance of that interval.

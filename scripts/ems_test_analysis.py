@@ -666,7 +666,6 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
     plt.tight_layout()
     plt.draw()
     plt.pause(0.001)
-    input("Press [enter] to continue.")
     return [axes[0].get_ylim(), axes[1].get_ylim(), axes[2].get_ylim(), axes[3].get_ylim()]
 
 
