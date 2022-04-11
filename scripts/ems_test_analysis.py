@@ -249,7 +249,7 @@ def pull_repeat_times_by_block(block_times_list, rhythm, bpm, block_repeats_list
 
 def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, block_times_list, \
     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, \
-        audio_trace, x_vec, raw_contact_trace, raw_x_vec, processed_contact_trace, processed_x_vec, y_axis_mins=0, y_axis_maxes=0):
+        audio_trace, x_vec, raw_contact_trace, raw_x_vec, processed_contact_trace, processed_x_vec, plot_flag, y_axis_mins=0, y_axis_maxes=0):
 
     mad_per_block, vad_per_block, = MAD_VAD_per_time_calc(rhythm, bpm, block_times_list, audio_onset_times, surpressed_contact_onset_times)
     emd_per_block = emd_per_time_calc(surpressed_contact_onset_times, audio_onset_times, block_times_list, bpm)
@@ -264,11 +264,13 @@ def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, b
 
     for i in range(len(block_repeats_list)):
         if block_flags[i]:
-            # fig, axes = plt.subplots(7,1)
-            # fig.set_size_inches(13, 8)
+            if plot_flag: 
+                fig, axes = plt.subplots(7,1)
+                fig.set_size_inches(13, 8)
+                title = f"{rhythm_name}: {rhythm}," + f"bpm: {bpm}, block: {block_names[i]}"
+                fig.suptitle(title)
 
-            title = f"{rhythm_name}: {rhythm}," + f"bpm: {bpm}, block: {block_names[i]}"
-            # fig.suptitle(title)
+            
 
             raw_contact_trace_selected, _, raw_x_trace_selected = chop_traces(i, raw_contact_trace,  \
                 raw_contact_trace, raw_x_vec, block_times_list, bpm) # raw contact is double input because not used and need to fit the dimensions.
@@ -276,29 +278,30 @@ def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, b
                 processed_contact_trace, processed_x_vec, block_times_list, bpm) # raw contact is double input because not used and need to fit the dimensions.
             
             ind = 0
-            # axes[ind].plot(raw_x_trace_selected, raw_contact_trace_selected)
-            # axes[ind].set_ylabel("contact trace value")
-            # axes[ind].set_title("Raw recorded contact trace")
+            if plot_flag:
+                axes[ind].plot(raw_x_trace_selected, raw_contact_trace_selected)
+                axes[ind].set_ylabel("contact trace value")
+                axes[ind].set_title("Raw recorded contact trace")
 
-            ind+=1
-            # axes[ind].plot(processed_x_vec_selected, processed_contact_trace_selected)
-            # # axes[ind].set_ylabel("contact trace value")
-            # axes[ind].set_title("Processed contact trace")
-            # axes[ind].sharex(axes[ind-1])
-            
-            ind+=1
+                ind+=1
+                axes[ind].plot(processed_x_vec_selected, processed_contact_trace_selected)
+                # axes[ind].set_ylabel("contact trace value")
+                axes[ind].set_title("Processed contact trace")
+                axes[ind].sharex(axes[ind-1])
+                ind+=1
+
             spikes_contact_trace_selected, spikes_audio_trace_selected, x_vec_selected = chop_traces(i, surpressed_contact_trace,  \
                 audio_trace, x_vec, block_times_list, bpm)
-            # axes[ind].set_title("Processed spikes versus audio onsets")
-            # axes[ind].set_yticks([])
-            # axes[ind].plot(x_vec_selected, (spikes_contact_trace_selected + 1))
-            # axes[ind].plot(x_vec_selected, spikes_audio_trace_selected)
-            # axes[ind].legend("contact spikes", "audio spikes")
-
-
             repeat_times = repeat_times_by_block[i]
-            # for time in repeat_times:
-                # axes[1].axvline(time, linewidth=2, color='g')
+            if plot_flag:
+                axes[ind].set_title("Processed spikes versus audio onsets")
+                axes[ind].set_yticks([])
+                axes[ind].plot(x_vec_selected, (spikes_contact_trace_selected + 1))
+                axes[ind].plot(x_vec_selected, spikes_audio_trace_selected)
+                axes[ind].legend("contact spikes", "audio spikes")
+                for time in repeat_times:
+                    axes[1].axvline(time, linewidth=2, color='g')
+
             contact_trace_selected, audio_trace_selected, x_trace_selected = chop_traces(i,surpressed_contact_trace, audio_trace, x_vec, block_times_list, bpm)
             contact_onsets_selected, audio_onsets_selected = chop_onsets(i,surpressed_contact_onset_times, audio_onset_times, block_times_list, bpm)
             mad_per_repeat, vad_per_repeat = MAD_VAD_per_time_calc(rhythm, bpm, repeat_times, audio_onsets_selected, contact_onsets_selected)
@@ -309,6 +312,7 @@ def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, b
             twds_by_block_by_repeat.append(twd_per_repeat)
             mads_by_block_by_repeat.append(mad_per_repeat)
             vads_by_block_by_repeat.append(vad_per_repeat)
+
             mid_repeat_x_val = []
             for j in range(len(repeat_times)-1):
                 x_val = (repeat_times[j] + repeat_times[j+1])/2
@@ -316,44 +320,44 @@ def plot_each_block(rhythm, rhythm_name, bpm, block_repeats_list, block_flags, b
             
             normed_emd = emd_per_block[i]/block_repeats_list[i]
             ind+=1
-            # axes[ind].set_title("Earth Mover's Distance per repeat")
-            # axes[ind].plot(mid_repeat_x_val, emd_per_repeat, color='red')
-            # axes[ind].axhline(normed_emd, color='r')
-            # axes[ind].sharex(axes[ind-1])
-            # if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-                # axes[ind].set_ylim([y_axis_mins['emds'],y_axis_maxes['emds']])
+            if plot_flag:
+                axes[ind].set_title("Earth Mover's Distance per repeat")
+                axes[ind].plot(mid_repeat_x_val, emd_per_repeat, color='red')
+                axes[ind].axhline(normed_emd, color='r')
+                axes[ind].sharex(axes[ind-1])
+                if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                    axes[ind].set_ylim([y_axis_mins['emds'],y_axis_maxes['emds']])
+                ind+=1
+                axes[ind].set_title("Time Warp Distance per repeat")
+                axes[ind].plot(mid_repeat_x_val, twd_per_repeat, color='orange')
+                # axes[ind].axhline( color='r')
+                axes[ind].sharex(axes[ind-1])
+                if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                    axes[ind].set_ylim([y_axis_mins['twds'],y_axis_maxes['twds']])
+                
+                ind+=1
+                axes[ind].set_title("Mean of Asynch Distribution per repeat")
+                axes[ind].plot(mid_repeat_x_val, mad_per_repeat, color='blue')
+                # axes[ind].axhline(mad_per_block[i], color='b')
+                axes[ind].set_ylabel("Fraction of interval")
+                axes[ind].sharex(axes[ind-1])
+                if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                    axes[ind].set_ylim([y_axis_mins['mads'],y_axis_maxes['mads']])
 
-            ind+=1
-            # axes[ind].set_title("Time Warp Distance per repeat")
-            # axes[ind].plot(mid_repeat_x_val, twd_per_repeat, color='orange')
-            # # axes[ind].axhline( color='r')
-            # axes[ind].sharex(axes[ind-1])
-            # if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-            #     axes[ind].set_ylim([y_axis_mins['twds'],y_axis_maxes['twds']])
-            
-            # ind+=1
-            # axes[ind].set_title("Mean of Asynch Distribution per repeat")
-            # axes[ind].plot(mid_repeat_x_val, mad_per_repeat, color='blue')
-            # # axes[ind].axhline(mad_per_block[i], color='b')
-            # axes[ind].set_ylabel("Fraction of interval")
-            # axes[ind].sharex(axes[ind-1])
-            # if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-            #     axes[ind].set_ylim([y_axis_mins['mads'],y_axis_maxes['mads']])
+                ind+=1
+                axes[ind].set_title("Variance of Asynch Distribution per repeat")
+                axes[ind].plot(mid_repeat_x_val, vad_per_repeat, color='green')
+                # axes[ind].axhline(vad_per_block[i], color='g')
+                axes[ind].sharex(axes[ind-1])
+                axes[ind].set_xlabel("time (ms)")
+                if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
+                    axes[ind].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
+                plt.tight_layout()
 
-            # ind+=1
-            # axes[ind].set_title("Variance of Asynch Distribution per repeat")
-            # axes[ind].plot(mid_repeat_x_val, vad_per_repeat, color='green')
-            # # axes[ind].axhline(vad_per_block[i], color='g')
-            # axes[ind].sharex(axes[ind-1])
-            # axes[ind].set_xlabel("time (ms)")
-            # if not type(y_axis_maxes) == int and not type(y_axis_mins) == int:
-            #     axes[ind].set_ylim([y_axis_mins['vads'],y_axis_maxes['vads']])
-            # plt.tight_layout()
+                
 
-            
-
-            # plt.show()
-            # input("continue?")
+                plt.show()
+                input("continue?")
     return emds_by_block_by_repeat, twds_by_block_by_repeat, mads_by_block_by_repeat, vads_by_block_by_repeat
  
 
@@ -627,7 +631,7 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
     std_twd = [np.nanstd(twds[1]), np.nanstd(twds[4])]
     mean_mad = [np.nanmean(mads[1]), np.nanmean(mads[4])]
     std_mad = [np.nanstd(mads[1]), np.nanstd(mads[4])]
-    mean_vad =  [np.nanmean(emds[1]), np.nanmean(vads[4])]
+    mean_vad =  [np.nanmean(vads[1]), np.nanmean(vads[4])]
     std_vad = [np.nanstd(vads[1]), np.nanstd(vads[4])]
     block_labels = (block_labels[1], block_labels[4])
     fig, axes = plt.subplots(4,1)
@@ -668,6 +672,39 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
     plt.pause(0.001)
     return [axes[0].get_ylim(), axes[1].get_ylim(), axes[2].get_ylim(), axes[3].get_ylim()]
 
+
+
+def plot_all_blocks(test_performance_dictionary, rhythm_name_list):
+
+    keys = ["emds", "twds", "mads", "vads"]
+    colors = ['r', 'orange', 'b', 'g']
+    labels = ["Mean EMD", "Mean TWD", "Mean MAD", "Mean VAD"]
+    initial_array = test_performance_dictionary[keys[0]] # num rhythms by num sessions by num presentations per session, mean then sd
+
+    for rhythm in range(np.size(initial_array, axis=0)):
+
+        fig, axes = plt.subplots(4,1)
+        title = f"{rhythm_name_list[rhythm]}: {rhythm}"
+        fig.suptitle(title)
+
+        key_count = -1
+        for key in keys:
+            key_count += 1
+            
+
+            test_array = test_performance_dictionary[key][rhythm]# num sessions by num presentations per session
+            for session in range(np.size(test_array, axis = 0)):
+                session_means = test_array[session, :,0]
+                session_sds = test_array[session, :, 1]
+                x_ax = np.arange(len(session_means)) + 8 * session
+                axes[key_count].scatter(x_ax, session_means, color=colors[key_count])
+                axes[key_count].set_ylabel(labels[key_count])
+                # axes[key_count].set_xticks())
+                # axes[key_count].set_xticklabels([])    
+                axes[key_count].errorbar(x_ax, session_means, yerr=session_sds, fmt="o", color=colors[key_count])
+                plt.tight_layout()
+                plt.draw()
+                plt.pause(0.001)
 
 
 def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
@@ -761,7 +798,8 @@ def twd_per_time_calc(contact_trace, audio_trace, x_vec, cut_times, bpm):
         spike_trace_contact, spike_trace_audio, _ = chop_traces(k, contact_trace, audio_trace, x_vec, cut_times, bpm)
         if len(spike_trace_audio) == 0 or len(spike_trace_contact) == 0:
             pause_here = True
-        twd = dtw_trace_distance(spike_trace_contact, spike_trace_audio) # run emd
+        # twd = dtw_trace_distance(spike_trace_contact, spike_trace_audio) # run emd
+        twd = 0
         distances_list.append(twd) # add to appropriate list.
         # title = f"total spikes contact: {len(spike_times_contact)}, total_spikes audio: {len(spike_times_audio)}, emd = {str(emd)}" # vic purp: {str(vp_dist)}"
         # if count == 2:
@@ -891,10 +929,11 @@ if __name__ == '__main__':
     # filter_test()
 
     # file_stems = ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
-    file_stems = ['2022_03_23_13_46_12_pp4', '2022_03_24_16_20_37_pp4', '2022_03_25_15_29_53_pp4']
+    # file_stems = ['2022_03_23_13_46_12_pp4', '2022_03_24_16_20_37_pp4', '2022_03_25_15_29_53_pp4']
     # file_stems =  ['2022_03_27_13_56_12_pp5']
+    # file_stems = ['2022_03_30_16_18_53_pp8', '2022_03_31_16_09_58_pp8', '2022_04_01_16_17_46_pp8']
+    file_stems = ['2022_04_02_16_43_08_pp9', '2022_04_02_17_31_11_pp9', '2022_04_03_13_51_14_pp98']
 
-    
 
     ### load data ###
     print("Loading data...")
@@ -906,6 +945,28 @@ if __name__ == '__main__':
     scores_by_session = []
 
     conditions = []
+
+    y_maxes = {
+        'emds' : 0,
+        'twds' : 0,
+        'mads' : 0,
+        'vads' : 0
+    }
+    y_mins = {
+        'emds' : 0,
+        'twds' : 0,
+        'mads' : 0,
+        'vads' : 0
+    }
+
+    # each rhythm is tested twice per presentation. Two presentations. Then later another two for four presentations in the day. So far a total of 8 tests. Then there are three days. So 24 tests.
+    test_performance_dictionary = {
+        'emds' : np.zeros([4,3,8,2]),
+        'twds' : np.zeros([4,3,8,2]),
+        'mads' : np.zeros([4,3,8,2]),
+        'vads' : np.zeros([4,3,8,2])
+    } # four rhythms, three days, 8 presentations of each rhythm in that day, mean then sd
+
 
     for session_number in range(len(vars_dicts)):
 
@@ -939,18 +1000,18 @@ if __name__ == '__main__':
             rhythm_substr = rhythm_strings[rhythm_index]
             count = count + 1
 
-            list_of_WK_var_lists_by_bpm = []
+            # list_of_WK_var_lists_by_bpm = []
 
-            processed_var_lists_by_bpm = []
-            processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
+            # processed_var_lists_by_bpm = []
+            # processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
 
-            scores_by_bpm = []
-            scores_by_rhythm.append(scores_by_bpm)
+            # scores_by_bpm = []
+            # scores_by_rhythm.append(scores_by_bpm)
 
 
             bpms = header_dict['bpms'] # for each bpm
             for bpm_index in range(len(bpms)):
-                bpm = bpms[bpm_index]
+                bpm = bpms[bpm_index] # no correction for order...
 
                 # pull vars from list
                 contact_x_interped = var_lists[rhythm_index][bpm_index]["contact_x_interped"]
@@ -983,11 +1044,32 @@ if __name__ == '__main__':
                 #         audio_trace[view_window_begin:view_window_end], contact_x_interped[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
                 delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict, first_audio)
-                
+                plot_flag = 0
                 emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
-                surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, contact_x_interped, reading_list_interped, contact_x_interped, reading_list_interped, contact_x_interped)
+                surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, contact_x_interped, reading_list_interped, contact_x_interped, reading_list_interped, contact_x_interped, plot_flag)
 
-                y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
+                pres_index = int(np.floor((rhythm_index)/4)) # first set of rhythms or second
+
+
+                test_performance_dictionary['emds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][0] = np.nanmean(emds[1])
+                test_performance_dictionary['emds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][0] = np.nanmean(emds[4])
+                test_performance_dictionary['twds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][0] = np.nanmean(twds[1])
+                test_performance_dictionary['twds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][0] = np.nanmean(twds[4])
+                test_performance_dictionary['mads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][0] = np.nanmean(mads[1])
+                test_performance_dictionary['mads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][0] = np.nanmean(mads[4])
+                test_performance_dictionary['vads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][0] = np.nanmean(vads[1])
+                test_performance_dictionary['vads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][0] = np.nanmean(vads[4])
+
+                test_performance_dictionary['emds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][1] = np.nanstd(emds[1])
+                test_performance_dictionary['emds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][1] = np.nanstd(emds[4])
+                test_performance_dictionary['twds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][1] = np.nanstd(twds[1])
+                test_performance_dictionary['twds'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][1] = np.nanstd(twds[4])
+                test_performance_dictionary['mads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][0] = np.nanstd(mads[1])
+                test_performance_dictionary['mads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][1] = np.nanstd(mads[4])
+                test_performance_dictionary['vads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2][1] = np.nanstd(vads[1])
+                test_performance_dictionary['vads'][rhythm_index%4][session_number][pres_index*4 + bpm_index*2 + 1][1] = np.nanstd(vads[4])
+
+                # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
 
 
                 ## check delays markers
@@ -1008,19 +1090,19 @@ if __name__ == '__main__':
                 #     plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector],contact_x_interped[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
                 #         contact_x_interped[bool_selector], header_dict['samp_period_ms'], legend_labels, title_str)
                 
-                MAD_by_phase, VAD_by_phase = MAD_VAD_per_time_calc(rhythm_substr, bpm, delays_list, audio_onset_times, surpressed_contact_onset_times)
+                # MAD_by_phase, VAD_by_phase = MAD_VAD_per_time_calc(rhythm_substr, bpm, delays_list, audio_onset_times, surpressed_contact_onset_times)
                 
-                distances_array = emd_per_time_calc(surpressed_contact_onset_times, audio_onset_times, delays_list, bpm)
-                dist_array = np.copy(distances_array)
+                # distances_array = emd_per_time_calc(surpressed_contact_onset_times, audio_onset_times, delays_list, bpm)
+                # dist_array = np.copy(distances_array)
 
 
-                phase_dict = {
-                    "MAD" : MAD_by_phase,
-                    "VAD" : VAD_by_phase,
-                    "EMD" : distances_array
-                }
+                # phase_dict = {
+                #     "MAD" : MAD_by_phase,
+                #     "VAD" : VAD_by_phase,
+                #     "EMD" : distances_array
+                # }
 
-                scores_by_bpm.append(phase_dict)
+                # scores_by_bpm.append(phase_dict)
             #______________________________________#
             ###### END OF PER TRIAL ANALYSIS ####### (still per rhythm)
 
@@ -1028,6 +1110,8 @@ if __name__ == '__main__':
             # plot_emds(emds, header_dict, rhythm_index)
             
             print("done")
+
+    plot_all_blocks(test_performance_dictionary, header_dict['rhythm_strings_names'])
 
         
 
