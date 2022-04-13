@@ -1,5 +1,6 @@
 
 import warnings
+import copy
 import pickle
 import ems_constants
 import numpy as np
@@ -652,14 +653,14 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
 
 def plot_all_blocks(test_performance_dictionary, rhythm_name_list, pt_name, condition):
 
-    keys = ["emds", "twds", "mads", "vads"]
-    colors = ['r', 'orange', 'b', 'g']
-    labels = ["Mean EMD", "Mean TWD", "Mean MAD", "Mean VAD"]
+    keys = ["emds","mads", "vads"]
+    colors = ['r',  'b', 'g']
+    labels = ["Mean EMD",  "Mean MAD", "Mean VAD"]
     initial_array = test_performance_dictionary[keys[0]] # num rhythms by num sessions by num presentations per session, mean then sd
 
     for rhythm in range(np.size(initial_array, axis=0)):
 
-        fig, axes = plt.subplots(4,1)
+        fig, axes = plt.subplots(3,1)
         title = f"ppt_num: {pt_name}, condition: {condition}, rhythm: {rhythm_name_list[rhythm]},"
         fig.suptitle(title)
 
@@ -909,13 +910,40 @@ if __name__ == '__main__':
     # file_stems =  ['2022_03_27_13_56_12_pp5']
     file_stems_all = [['2022_03_29_14_47_38_pp6', '2022_03_30_14_29_49_pp6'], \
         ['2022_03_30_13_23_09_pp7', '2022_03_31_13_19_05_pp7', '2022_04_01_13_30_32_pp7'], \
-        ['2022_03_30_13_23_09_pp7', '2022_03_31_13_19_05_pp7', '2022_04_01_13_30_32_pp7'], \
         ['2022_03_30_16_18_53_pp8', '2022_03_31_16_09_58_pp8', '2022_04_01_16_17_46_pp8'], \
         ['2022_04_01_19_39_42_pp9', '2022_04_02_16_43_08_pp9', '2022_04_03_13_51_14_pp98'], \
         ['2022_04_09_12_08_53_pp10', '2022_04_10_12_23_50_pp10', '2022_04_11_18_40_41_pp10'], \
-        ['2022_04_11_15_56_10_pp11','2022_04_12_15_27_18_pp11']]
+        ['2022_04_11_15_56_10_pp11','2022_04_12_15_27_18_pp11', '2022_04_13_13_37_03_pp11']]
     names = ["pt6", "pt7", "pt8", "pt9", "pt10", "pt11"]
     conditions = ["audio", "audio", "audio", "tactile", "ems", "ems"]
+
+
+    num_unique_rhythms = 4
+    num_unique_bpms = 2
+    test_performance_dictionary = {
+        'emds' : np.zeros([num_unique_rhythms,3,8,2]),
+        'twds' : np.zeros([num_unique_rhythms,3,8,2]),
+        'mads' : np.zeros([num_unique_rhythms,3,8,2]),
+        'vads' : np.zeros([num_unique_rhythms,3,8,2])
+    } 
+    change_in_performance_dictionary = {
+        'emds' : np.zeros([num_unique_rhythms, 3]),
+        'twds' : np.zeros([num_unique_rhythms, 3]),
+        'mads' : np.zeros([num_unique_rhythms, 3]),
+        'vads' : np.zeros([num_unique_rhythms, 3])
+    }
+    participant_results_dict = {
+        "test_performance" : test_performance_dictionary,
+        "change_in_performance" : change_in_performance_dictionary
+    }
+     # four rhythms, three data points: difference from beginning to end of first day, difference beginning first day end of second, different beginning first end third
+    # four rhythms, three days, 8 presentations of each rhythm in that day, mean then sd
+    metric_strings = test_performance_dictionary.keys() # get names of each metric (emd, twd, mad vad)
+
+    participant_results_list = []
+    for participant in range(len(names)):
+        participant_results_list.append(copy.deepcopy(participant_results_dict))
+
 
     for pt_index in range(len(names)):
         file_stems = file_stems_all[pt_index]
@@ -932,29 +960,8 @@ if __name__ == '__main__':
 
         scores_by_session = []
 
-        y_maxes = {
-            'emds' : 0,
-            'twds' : 0,
-            'mads' : 0,
-            'vads' : 0
-        }
-        y_mins = {
-            'emds' : 0,
-            'twds' : 0,
-            'mads' : 0,
-            'vads' : 0
-        }
-
         # each rhythm is tested twice per presentation. Two presentations. Then later another two for four presentations in the day. So far a total of 8 tests. Then there are three days. So 24 tests.
-        test_performance_dictionary = {
-            'emds' : np.zeros([4,3,8,2]),
-            'twds' : np.zeros([4,3,8,2]),
-            'mads' : np.zeros([4,3,8,2]),
-            'vads' : np.zeros([4,3,8,2])
-        } # four rhythms, three days, 8 presentations of each rhythm in that day, mean then sd
-
-        num_unique_rhythms = 4
-        num_unique_bpms = 2
+        
 
         for session_number in range(len(vars_dicts)):
 
@@ -1025,21 +1032,32 @@ if __name__ == '__main__':
                     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, contact_x_interped, reading_list_interped, contact_x_interped, reading_list_interped, contact_x_interped, plot_flag)
 
                     pres_index = int(np.floor((rhythm_index)/num_unique_rhythms)) # first set of rhythms or second
-                    metric_strings = test_performance_dictionary.keys() # get names of each metric (emd, twd, mad vad)
                     for strang in metric_strings: # for every metric
                         # put first test block mean/median into dictionary
-                        test_performance_dictionary[strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms][0] = np.nanmedian(plot_blocks_results_dict[strang][1])
+                        first_test_block = np.nanmedian(plot_blocks_results_dict[strang][1][0:1])
+                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+                            bpm_index*num_unique_bpms][0] = first_test_block
                         # put second test block mean/median into dict
-                        test_performance_dictionary[strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms + 1][0] = np.nanmedian(plot_blocks_results_dict[strang][4])
+                        second_test_block = np.nanmedian(plot_blocks_results_dict[strang][4][0:1])
+                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+                            bpm_index*num_unique_bpms + 1][0] = second_test_block
                         # put first test block standard dev into dict
-                        test_performance_dictionary[strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1])
+                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+                            bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1][0:1])
                         # put second test block standard dev into dict
-                        test_performance_dictionary[strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4])
-
+                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+                            bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4][0:1])
+        
+        for rhythm_index in range(num_unique_rhythms):
+            for strang in metric_strings: # for every metric   
+                sessions = [0, 1, 2]
+                first_session = 0
+                for session_num in sessions:
+                    # get for [each index] at [each rhythm] for [the first session], [the first two datapoints], [their means].
+                    change_in_performance = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][first_session][0:1][0]) - \
+                        np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][session_num][7:8][0])
+                    #first two data points of first session - last two of first second and third
+                    participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][session_num] = change_in_performance
                     # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
 
 
@@ -1080,7 +1098,7 @@ if __name__ == '__main__':
                 # all_emds = all_emds + emds
                 # plot_emds(emds, header_dict, rhythm_index)
 
-        plot_all_blocks(test_performance_dictionary, header_dict['rhythm_strings_names'], pt_name, condition)
+        plot_all_blocks(participant_results_list[pt_index]["test_performance"], header_dict['rhythm_strings_names'], pt_name, condition)
 
         
 
