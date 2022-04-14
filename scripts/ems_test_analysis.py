@@ -651,24 +651,32 @@ def plot_test_blocks(emds, mads, vads, twds, name, rhythm, bpm, block_labels, y_
 
 
 
-def plot_all_blocks(test_performance_dictionary, rhythm_name_list, pt_name, condition):
+def plot_all_blocks(performance_dictionary, rhythm_name_list, pt_name, condition):
 
     keys = ["emds","mads", "vads"]
+    ylims = [[0, 600], [0, 0.6], [0, 0.3]]
+    day_dividers = [7.5, 15.5]
+    repeat_dividers = [3.5, 11.5, 19.5]
     colors = ['r',  'b', 'g']
     labels = ["Mean EMD",  "Mean MAD", "Mean VAD"]
+    test_performance_dictionary = performance_dictionary['test_performance']
     initial_array = test_performance_dictionary[keys[0]] # num rhythms by num sessions by num presentations per session, mean then sd
-
+    change_in_performance_dictionary = performance_dictionary['change_in_performance']
+    
     for rhythm in range(np.size(initial_array, axis=0)):
-
         fig, axes = plt.subplots(3,1)
         title = f"ppt_num: {pt_name}, condition: {condition}, rhythm: {rhythm_name_list[rhythm]},"
         fig.suptitle(title)
-
         key_count = -1
         for key in keys:
             key_count += 1
-            
-
+            m = change_in_performance_dictionary[key][rhythm][3]
+            b = change_in_performance_dictionary[key][rhythm][4]
+            r = change_in_performance_dictionary[key][rhythm][5]
+            p = change_in_performance_dictionary[key][rhythm][6]
+            x = np.arange(24)
+            axes[key_count].plot(x, m*x + b , color=colors[key_count])
+            axes[key_count].set_title(f"{key}: y = {round_sig(m, 3)}x + {round_sig(b,3)}, r = {round_sig(r, 3)}, p = {round_sig(p, 3)}")
             test_array = test_performance_dictionary[key][rhythm]# num sessions by num presentations per session
             for session in range(np.size(test_array, axis = 0)):
                 session_means = test_array[session, :,0]
@@ -678,10 +686,13 @@ def plot_all_blocks(test_performance_dictionary, rhythm_name_list, pt_name, cond
                 axes[key_count].set_ylabel(labels[key_count])
                 # axes[key_count].set_xticks())
                 # axes[key_count].set_xticklabels([])    
-                axes[key_count].errorbar(x_ax, session_means, yerr=session_sds, fmt="o", color=colors[key_count])
-                plt.tight_layout()
-                plt.draw()
-                plt.pause(0.001)
+                # axes[key_count].errorbar(x_ax, session_means, yerr=session_sds, fmt="o", color=colors[key_count])
+                axes[key_count].vlines(day_dividers, ylims[key_count][0], ylims[key_count][1]/5, linewidth=3, color='k')
+                axes[key_count].vlines(repeat_dividers, ylims[key_count][0], ylims[key_count][1]/5, linewidth=1, color='k')
+            plt.ylim(ylims[key_count][0],ylims[key_count][1])
+            plt.tight_layout()
+            plt.draw()
+            plt.pause(0.001)
 
 
 def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
@@ -890,6 +901,54 @@ def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_na
     if all_rhythms_mean_flag == 1:
         plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes, title_name, v_line_1, v_line_2)
 
+def cumulative_plot(participant_results_list):
+    # drop participant 7
+    keys = ["emds", "mads", "vads"]
+    colors = ['r',  'b', 'g']
+    rhythm_name_list = ["rhythm_1", "rhythm_2", "rhythm_3", "rhythm_4"]
+
+   
+
+    slope_and_correlation_by_rhythm_and_participant = {
+        'emds' : np.zeros([4, 6, 2]),
+        'twds' : np.zeros([4, 6, 2]),
+        'mads' : np.zeros([4, 6, 2]),
+        'vads' : np.zeros([4, 6, 2])
+    }
+
+    for key_index in range(len(keys)):
+        fig, axes = plt.subplots(1,4)
+        fig.suptitle(f"{keys[key_index]} slope vs corcoeff for each rhythm across ppts")
+        for rhythm_index in range(len(rhythm_name_list)):
+            
+            
+            for participant_index in range(len(participant_results_list)):
+                if (rhythm_index == 0 or rhythm_index == 1) and (participant_index == 1): # if heiko, pp7, and first two rhythms, drop
+                    continue
+                pp_results = participant_results_list[participant_index]
+                change_in_perf_dict = pp_results["change_in_performance"]
+                this_rhythm = change_in_perf_dict[keys[key_index]][rhythm_index]
+                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 0] = this_rhythm[3] # slope
+                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 1] = this_rhythm[5] # correlation coefficient
+
+            slopes = slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, :, 0]
+            corrcoeff = slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, :, 1]
+            mask = np.logical_or(~(slopes==0), ~(corrcoeff==0))
+            slopes = slopes[mask]
+            corrcoeff = corrcoeff[mask]
+            axes[rhythm_index].set_title(rhythm_name_list[rhythm_index])
+            axes[rhythm_index].scatter(slopes, \
+                corrcoeff, color = colors[key_index])
+            axes[rhythm_index].set_xlabel("slope of trendline")
+            axes[rhythm_index].set_ylabel("corrcoeff of trendline")
+            plt.tight_layout()
+            plt.draw()
+            plt.pause(0.001)
+
+
+
+
+
 
 # def cluster_intervals(num_intervals, gt_intervals)
 # _____________________________________________________
@@ -927,16 +986,17 @@ if __name__ == '__main__':
         'vads' : np.zeros([num_unique_rhythms,3,8,2])
     } 
     change_in_performance_dictionary = {
-        'emds' : np.zeros([num_unique_rhythms, 3]),
-        'twds' : np.zeros([num_unique_rhythms, 3]),
-        'mads' : np.zeros([num_unique_rhythms, 3]),
-        'vads' : np.zeros([num_unique_rhythms, 3])
+        'emds' : np.zeros([num_unique_rhythms, 7]),
+        'twds' : np.zeros([num_unique_rhythms, 7]),
+        'mads' : np.zeros([num_unique_rhythms, 7]),
+        'vads' : np.zeros([num_unique_rhythms, 7])
     }
     participant_results_dict = {
         "test_performance" : test_performance_dictionary,
         "change_in_performance" : change_in_performance_dictionary
     }
-     # four rhythms, three data points: difference from beginning to end of first day, difference beginning first day end of second, different beginning first end third
+     # four rhythms, seven data points: difference from beginning to end of first day, difference beginning first day end of second, different beginning first end third
+        # also slope, intercept of line of best fit and correlation coefficient, and p val on corr coef
     # four rhythms, three days, 8 presentations of each rhythm in that day, mean then sd
     metric_strings = test_performance_dictionary.keys() # get names of each metric (emd, twd, mad vad)
 
@@ -1035,23 +1095,43 @@ if __name__ == '__main__':
                     for strang in metric_strings: # for every metric
                         # put first test block mean/median into dictionary
                         first_test_block = np.nanmedian(plot_blocks_results_dict[strang][1][0:1])
+                        if np.isnan(first_test_block):
+                            stop = 1
                         participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
                             bpm_index*num_unique_bpms][0] = first_test_block
+                        
                         # put second test block mean/median into dict
                         second_test_block = np.nanmedian(plot_blocks_results_dict[strang][4][0:1])
+                        if np.isnan(second_test_block):
+                            stop = 1
                         participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
                             bpm_index*num_unique_bpms + 1][0] = second_test_block
                         # put first test block standard dev into dict
                         participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1][0:1])
+                            bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1])
                         # put second test block standard dev into dict
                         participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4][0:1])
+                            bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4])
         
         for rhythm_index in range(num_unique_rhythms):
             for strang in metric_strings: # for every metric   
                 sessions = [0, 1, 2]
                 first_session = 0
+                # for this rhythm, all sessions together, all data points, only the means.
+                all_sessions_array = participant_results_list[pt_index]["test_performance"][strang][rhythm_index][:,:,0]
+                if sum(all_sessions_array[2]) == 0:
+                    all_sessions_array = all_sessions_array[0:2]
+                all_sesh_array = np.hstack(all_sessions_array)
+                x = np.arange(len(all_sesh_array))
+                nan_mask = ~np.isnan(all_sesh_array)
+                all_sesh_array = all_sesh_array[nan_mask]
+                x = x[nan_mask]
+                slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, all_sesh_array)
+                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][3] = slope
+                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][4] = intercept
+                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][5] = r_value
+                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][6] = p_value
+                
                 for session_num in sessions:
                     # get for [each index] at [each rhythm] for [the first session], [the first two datapoints], [their means].
                     change_in_performance = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][first_session][0:1][0]) - \
@@ -1059,7 +1139,9 @@ if __name__ == '__main__':
                     #first two data points of first session - last two of first second and third
                     participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][session_num] = change_in_performance
                     # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
-
+            
+        plot_all_blocks(participant_results_list[pt_index], header_dict['rhythm_strings_names'], pt_name, condition)
+    # cumulative_plot(participant_results_list)
 
                     ## check delays markers
                     # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \
@@ -1098,7 +1180,7 @@ if __name__ == '__main__':
                 # all_emds = all_emds + emds
                 # plot_emds(emds, header_dict, rhythm_index)
 
-        plot_all_blocks(participant_results_list[pt_index]["test_performance"], header_dict['rhythm_strings_names'], pt_name, condition)
+        
 
         
 
@@ -1112,7 +1194,7 @@ if __name__ == '__main__':
     # plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0)
     
 
-
+        
         
 
 end = 3
