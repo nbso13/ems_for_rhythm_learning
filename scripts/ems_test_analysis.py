@@ -1,4 +1,5 @@
 
+from multiprocessing.sharedctypes import Value
 import warnings
 import copy
 import pickle
@@ -19,7 +20,7 @@ from scipy import signal
 import os
 import time
 from math import log10, floor
-from fastdtw import fastdtw
+# from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 
 
@@ -28,8 +29,9 @@ def dtw_trace_distance(query, template):
     return distance
 
 def round_sig(x, sig=2):
-    if np.isnan(x):
+    if np.isnan(x) or x == 0:
         return(x)
+
     else:
         return round(x, sig-int(floor(log10(abs(x))))-1)
 def sine_generator(fs, sinefreq, duration):
@@ -456,7 +458,8 @@ def emd_mad_vad_test(title, times_a, times_b, mini, maxi, samp_period, unique_in
     xvec = np.arange(mini, maxi, samp_period)
     query = spike_times_to_traces(times_a, samp_period, xvec, samp_period)
     template = spike_times_to_traces(times_b, samp_period, xvec, samp_period)
-    twd = dtw_trace_distance(query, template)
+    # twd = dtw_trace_distance(query, template)
+    twd = 0
     emd = earth_movers_distance(times_a, times_b)
     mad, vad = mad_vad(times_a, times_b, unique_intervals)
     mad_mean = np.mean(mad)
@@ -554,6 +557,8 @@ def emd_tests():
         [1.1, 2.1, 3.1, 5.1], [1.1, 3.1, 5.1], [1.1, 2.1, 3.1, 4.1, 4.5, 5.1],  \
             [1.1, 2.1, 3.1, 3.5, 4.1, 4.5, 5.1 ], [1.1, 2.1, 3.1, 4.1, 4.9, 5.1], [1.1, 2.1, 3.1, 3.2, 4.1, 5.1]]
 
+    times_c = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    times_d = [x+0.1 for x in times_c]
     emds = []
     twds = []
     MADs = []
@@ -569,6 +574,8 @@ def emd_tests():
         MADs.append(MAD[0])
         VADs.append(VAD[0])
 
+    emd, twd, MAD, VAD = emd_mad_vad_test("extra ground truth effect", times_c, times_d, mini, maxi=10, samp_period=samp_period, unique_intervals=[1])
+    
     fig, axes = plt.subplots(3,1)
     axes[0].set_title("Bar plot for EMDS across tests")
     axes[0].set_ylabel("EMD")
@@ -583,13 +590,13 @@ def emd_tests():
     axes[2].set_title("Bar plot for VADs across tests")
     axes[2].set_ylabel("VAD")
 
-    axes[3].set_xticks(np.arange(len(titles)))
-    axes[3].set_xticklabels(titles)
-    axes[3].set_title("Bar plot for TWDs across tests")
-    axes[3].set_ylabel("TWD")
-    plt.xticks(rotation=30, ha="right")
-    axes[2].bar(np.arange(len(titles)), twds, align='center')
-    plt.tight_layout()
+    # axes[3].set_xticks(np.arange(len(titles)))
+    # axes[3].set_xticklabels(titles)
+    # axes[3].set_title("Bar plot for TWDs across tests")
+    # axes[3].set_ylabel("TWD")
+    # plt.xticks(rotation=30, ha="right")
+    # axes[2].bar(np.arange(len(titles)), twds, align='center')
+    # plt.tight_layout()
     return 
 
 
@@ -670,10 +677,10 @@ def plot_all_blocks(performance_dictionary, rhythm_name_list, pt_name, condition
         key_count = -1
         for key in keys:
             key_count += 1
-            m = change_in_performance_dictionary[key][rhythm][3]
-            b = change_in_performance_dictionary[key][rhythm][4]
-            r = change_in_performance_dictionary[key][rhythm][5]
-            p = change_in_performance_dictionary[key][rhythm][6]
+            m = change_in_performance_dictionary[key][rhythm][1]
+            b = change_in_performance_dictionary[key][rhythm][2]
+            r = change_in_performance_dictionary[key][rhythm][3]
+            p = change_in_performance_dictionary[key][rhythm][4]
             x = np.arange(24)
             axes[key_count].plot(x, m*x + b , color=colors[key_count])
             axes[key_count].set_title(f"{key}: y = {round_sig(m, 3)}x + {round_sig(b,3)}, r = {round_sig(r, 3)}, p = {round_sig(p, 3)}")
@@ -901,56 +908,296 @@ def plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_na
     if all_rhythms_mean_flag == 1:
         plot_scores_mean(emd_arr, mads_arr, vads_arr, bpm_axes, title_name, v_line_1, v_line_2)
 
-def cumulative_plot(participant_results_list):
+
+def place_in_list(plot_blocks_results_dict, participant_list, strang, rhythm_index, num_unique_rhythms, session_number, bpm_index, num_unique_bpms, pres_index):
+    first_test_block = np.nanmedian(plot_blocks_results_dict[strang][1][:])
+    if np.isnan(first_test_block):
+        stop = 1
+    participant_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+        bpm_index*num_unique_bpms][0] = first_test_block
+    
+    # put second test block mean/median into dict  --- SECOND TEST BLOCK IS BLOCK 4
+    second_test_block = np.nanmedian(plot_blocks_results_dict[strang][4][:])
+    if np.isnan(second_test_block):
+        stop = 1
+    participant_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+        bpm_index*num_unique_bpms + 1][0] = second_test_block
+    # put first test block standard dev into dict
+    participant_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+        bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1])
+    # put second test block standard dev into dict
+    participant_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
+        bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4])
+
+
+def cumulative_plot(participant_results_list, condition_by_ppt_list):
     # drop participant 7
     keys = ["emds", "mads", "vads"]
-    colors = ['r',  'b', 'g']
+    condition_strings = ["ems", "audio", "tactile"]
+    colors = ["magenta", 'cyan', 'yellow']
     rhythm_name_list = ["rhythm_1", "rhythm_2", "rhythm_3", "rhythm_4"]
 
    
 
     slope_and_correlation_by_rhythm_and_participant = {
-        'emds' : np.zeros([4, 6, 2]),
-        'twds' : np.zeros([4, 6, 2]),
-        'mads' : np.zeros([4, 6, 2]),
-        'vads' : np.zeros([4, 6, 2])
+        'emds' : np.zeros([len("rhythm_name_list"), len(participant_results_list), 2]),
+        'twds' : np.zeros([len("rhythm_name_list"), len(participant_results_list), 2]),
+        'mads' : np.zeros([len("rhythm_name_list"), len(participant_results_list), 2]),
+        'vads' : np.zeros([len("rhythm_name_list"), len(participant_results_list), 2])
     }
 
     for key_index in range(len(keys)):
         fig, axes = plt.subplots(1,4)
         fig.suptitle(f"{keys[key_index]} slope vs corcoeff for each rhythm across ppts")
         for rhythm_index in range(len(rhythm_name_list)):
-            
-            
             for participant_index in range(len(participant_results_list)):
-                if (rhythm_index == 0 or rhythm_index == 1) and (participant_index == 1): # if heiko, pp7, and first two rhythms, drop
+                if (rhythm_index == 0 or rhythm_index == 1) and (participant_results_list[participant_index]["name"]=="pt7"): # if heiko, pp7, and first two rhythms, drop
                     continue
                 pp_results = participant_results_list[participant_index]
                 change_in_perf_dict = pp_results["change_in_performance"]
                 this_rhythm = change_in_perf_dict[keys[key_index]][rhythm_index]
-                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 0] = this_rhythm[3] # slope
-                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 1] = this_rhythm[5] # correlation coefficient
-
+                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 0] = this_rhythm[1] # slope
+                slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, participant_index, 1] = this_rhythm[3] # correlation coefficient
+             
+            
             slopes = slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, :, 0]
             corrcoeff = slope_and_correlation_by_rhythm_and_participant[keys[key_index]][rhythm_index, :, 1]
             mask = np.logical_or(~(slopes==0), ~(corrcoeff==0))
             slopes = slopes[mask]
             corrcoeff = corrcoeff[mask]
+            
+            bool_list_bool_select = []
+            for val in range(len(condition_strings)):
+                bool_results = [cond==condition_strings[val] for cond in condition_by_ppt_list]
+                bool_results = np.array(bool_results)
+                bool_results = bool_results[mask]
+                bool_list_bool_select.append(bool_results)
+
             axes[rhythm_index].set_title(rhythm_name_list[rhythm_index])
-            axes[rhythm_index].scatter(slopes, \
-                corrcoeff, color = colors[key_index])
+            for cond_index in range(len(condition_strings)):
+                axes[rhythm_index].scatter(slopes[bool_list_bool_select[cond_index]], \
+                    corrcoeff[bool_list_bool_select[cond_index]], color = colors[cond_index], label=condition_strings[cond_index])
             axes[rhythm_index].set_xlabel("slope of trendline")
             axes[rhythm_index].set_ylabel("corrcoeff of trendline")
+            # axes[rhythm_index].legend()
             plt.tight_layout()
             plt.draw()
             plt.pause(0.001)
+            
 
 
+def regress_participant_array(num_unique_rhythms, metric_strings, participant_results_list, pt_index, day=''):
+    for rhythm_index in range(num_unique_rhythms):
+        if (rhythm_index == 0 or rhythm_index == 1) and (participant_results_list[pt_index]["name"]=="pt7"): # if heiko, pp7, and first two rhythms, drop
+            continue
+        for strang in metric_strings: # for every metric   
+            sessions = [0, 1, 2]
+            first_session = 0
+            # for this rhythm, all sessions together, all data points, only the means.
+            all_sessions_array = participant_results_list[pt_index]["test_performance"][strang][rhythm_index][:,:,0]
+            if sum(all_sessions_array[2]) == 0: # if the third day is empty then cut it out for the regression.
+                all_sessions_array = all_sessions_array[0:2]
+            all_sesh_array = np.hstack(all_sessions_array)
+            x = np.arange(len(all_sesh_array))
+            nan_mask = ~np.isnan(all_sesh_array)
+            all_sesh_array = all_sesh_array[nan_mask]
+            x = x[nan_mask]
+            slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, all_sesh_array)
+            regress_results = [slope, intercept, r_value, p_value]
+            for i in range(len(regress_results)):
+                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][i+1] = regress_results[i] 
+                # set first four change in performance measures to those regress results
+                # get for [each index] at [each rhythm] for [the first session], [the first two datapoints], [their means].
+            initial = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][0][0:1][0])
+            if day == 'last':
+                if pt_index == 0:
+                    final = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][1][6:7][0]) # no data for francesco...
+                else:
+                    final = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][2][6:7][0]) # final session
+            elif day == 'first':
+                final = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][0][6:7][0]) # first session
+            else:
+                raise ValueError("day not recognized.")
+            fraction_difference = (initial-final)/initial
+            #first two data points of first session - last two of first second and third
+            participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][0] = fraction_difference
+            # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
+            
+
+def plot_performance_by_rhythm(metric_string, num_unique_rhythms, results_list, axes_by_rhythm, colors, counter, subject_ids, rhythm_axes_indices=[0,0],  performance_type='initial', title_rhythm="", norm=True, plot_individuals=True, ylabel="", day=''):
+    # if day == 'last' then we compare to last performance last day. if day == 'first' we compare to last performance first day.
+    # performance matrix
+    performance = np.empty([num_unique_rhythms, len(results_list)])
+    performance[:] = np.nan
+    #select rhythm and subject specific axes based on passed coordinates
+    rhyth_ax = axes_by_rhythm[rhythm_axes_indices[0]][rhythm_axes_indices[1]]
+    # loop through rhythms and pps making performance matrices
+    for rhythm_index in range(num_unique_rhythms): # for each rhythm
+        for ppt_ind in range(len(results_list)): # for each participant, grab their change for this metric for this rhyth
+            if (rhythm_index == 0 or rhythm_index == 1) and (results_list[ppt_ind]["name"]=="pt7"): # if heiko, pp7, and first two rhythms, drop
+                    continue
+            if performance_type == 'change': # figure out performance type
+                result = results_list[ppt_ind]["change_in_performance"][metric_string][rhythm_index][0] # not regression stats but difference between beginning and final
+                # pull result
+            elif performance_type == 'initial':
+                result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][0][0:1][0])
+            elif performance_type == 'final':
+                if day == 'last':
+                    if subject_ids[ppt_ind] == 'pt6': # francesco
+                        result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][1][6:7][0]) # final performance last day francesco
+                    else:
+                        result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][2][6:7][0]) # final performance last day
+                elif day == 'first':
+                    result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][0][6:7][0]) # final performance first day
+                else:
+                    raise ValueError('day not recognized.')
+            else:
+                raise ValueError('performance measure not recognized')
+            # place into matrix
+            performance[rhythm_index, ppt_ind] = result
+
+    performance_by_rhythm = performance # norm if necessary
+    if norm:         
+        x = performance_by_rhythm
+        performance_by_rhythm = (x - x.min(0)) / x.ptp(0) 
+    rhyth_ax.set_ylabel(ylabel)
+    #put together means and sds for each rhythm
+    y_values_by_rhythm = [np.nanmean(performance_by_rhythm[i,:]) for i in range(len(performance_by_rhythm))]
+    errs_by_rhythm = [np.nanstd(performance_by_rhythm[i,:]) for i in range(len(performance_by_rhythm))]
+    rhyth_ax.set_title(title_rhythm)
+    rhyth_ax.bar(np.arange(len(y_values_by_rhythm)), y_values_by_rhythm, color=colors[counter])
+    rhyth_ax.set_xlabel("rhythm num")
+    rhyth_ax.set_xticks(np.arange(len(y_values_by_rhythm)))
+    
+    rhyth_ax.errorbar(np.arange(len(y_values_by_rhythm)),  y_values_by_rhythm, yerr = errs_by_rhythm, fmt='o') 
+    # plot each individual
+    if plot_individuals:
+        for ppt_ind in range(len(results_list)):
+            rhyth_ax.plot(np.arange(len(y_values_by_rhythm)), performance_by_rhythm[:, ppt_ind], color='k')
+    return performance_by_rhythm
+
+    
+def plot_performance_by_subject(metric_string, num_unique_rhythms, results_list, axes_by_subject, colors, counter, subject_ids, subject_axes_indices=[0,0], performance_type='initial',  title_subject="", ylabel="", day=''):
+    # if day == 'last' then we compare to last performance last day. if day == 'first' we compare to last performance first day.
+    # performance matrix
+    performance = np.empty([num_unique_rhythms, len(results_list)])
+    performance[:] = np.nan
+    #select rhythm and subject specific axes based on passed coordinates
+    sub_ax = axes_by_subject[subject_axes_indices[0]][subject_axes_indices[1]]
+    # loop through rhythms and pps making performance matrices
+    for rhythm_index in range(num_unique_rhythms): # for each rhythm
+        for ppt_ind in range(len(results_list)): # for each participant, grab their change for this metric for this rhyth
+            if (results_list[ppt_ind]["name"]=="pt7"): # if heiko, pp7, and first two rhythms, drop
+                    continue
+            if performance_type == 'change': # figure out performance type
+                result = results_list[ppt_ind]["change_in_performance"][metric_string][rhythm_index][0] # not regression stats but difference between beginning and final
+                # pull result
+            elif performance_type == 'initial':
+                result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][0][0:1][0])
+            elif performance_type == 'final':
+                if day == 'last':
+                    if subject_ids[ppt_ind] == 'pt6': # francesco
+                        result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][1][6:7][0]) # final performance last day francesco
+                    else:
+                        result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][2][6:7][0]) # final performance last day
+                elif day == 'first':
+                    result = np.mean(results_list[ppt_ind]["test_performance"][metric_string][rhythm_index][0][6:7][0]) # final performance first day
+                else:
+                    raise ValueError('day not recognized.')
+            else:
+                raise ValueError('performance measure not recognized')
+            # place into matrix
+            performance[rhythm_index, ppt_ind] = result
+
+    performance_by_subject = performance
+    #put together means and sds for each rhythm
+    y_values_by_subject = [np.nanmean(performance_by_subject[:,i]) for i in range(len(performance_by_subject[0]))]
+    errs_by_subject = [np.nanstd(performance_by_subject[:, i]) for i in range(len(performance_by_subject[0]))]
+    sub_ax.set_title(title_subject)
+    sub_ax.bar(np.arange(len(y_values_by_subject)), y_values_by_subject, color=colors[counter])
+    sub_ax.set_xlabel("subject num")
+    sub_ax.set_xticks(np.arange(len(y_values_by_subject)))
+    sub_ax.set_xticklabels(subject_ids, rotation=45, ha='right')
+    sub_ax.set_ylabel(ylabel)
+    sub_ax.errorbar(np.arange(len(y_values_by_subject)),  y_values_by_subject, yerr = errs_by_subject, fmt='o') 
+    return performance_by_subject
+    
+def plot_change_performance_sessions(participant_results_list, num_unique_rhythms, metric_strings, normed, day, subject_ids, plot_rhythm = True, plot_subject = True):
+    # for each rhythm for each metric, mean change in results bar graph
+    if plot_rhythm:
+        rhythm_name_list = ["rhythm_1", "rhythm_2", "rhythm_3", "rhythm_4"]
+        metric_types = ['initial', 'final', 'change']
+        colors = ['r', 'b', 'g']
+        counter = 0
+        fig_rhythm, axes_rhythm = plt.subplots(3,3)
+        rhythm_performance = []
+        fig_rhythm.suptitle(f"{'Normalized p' if normed else 'P'}erformance by rhythm, {day} day")
+        for strang in metric_strings: # for each type of metric
+            if strang == 'twds':
+                continue
+            strang_performance = []
+            rhythm_performance.append(strang_performance)
+            for i in range(len(metric_types)):
+                perform = plot_performance_by_rhythm(strang, num_unique_rhythms, participant_results_list, axes_rhythm, colors, counter, subject_ids, rhythm_axes_indices=[counter,i],  performance_type=f"{metric_types[i]}", title_rhythm=f"{metric_types[i]} " + strang, norm=normed, plot_individuals=True, ylabel=f"{'Normed ' if normed else ''}{strang}", day=day)
+                strang_performance.append(perform)
+            counter = counter + 1
+        plt.tight_layout()
+        plt.draw()
+        plt.pause(0.001)
+
+    if plot_subject:
+        subject_performance = []
+        counter = 0
+        fig_subject, axes_subject = plt.subplots(3,3)
+        fig_subject.suptitle(f"Performance by subject, {day} day{', normed' if normed else ''}")
+        for strang in metric_strings: # for each type of metric
+            if strang == 'twds':
+                continue
+            strang_performance = []
+            subject_performance.append(strang_performance)
+            for i in range(len(metric_types)):
+                perform = plot_performance_by_subject(strang, num_unique_rhythms, participant_results_list, axes_subject, colors, counter, subject_ids, subject_axes_indices=[counter, i], performance_type=f"{metric_types[i]}",  title_subject=f"{metric_types[i]} " + strang, ylabel=f"{strang}", day=day)
+                strang_performance.append(perform)
+            counter = counter + 1
+
+            # proms scores relation to learning and relation to initial performance and relation to final performance
+            
+            
+        plt.tight_layout()
+        plt.draw()
+        plt.pause(0.001)
+
+        fig, axes = plt.subplots(3,3)
+        fig.suptitle(f"comparing to PROMS scores, {day} day{', normed' if normed else ''}")
+        x_values = ems_constants.proms_scores
+        #take out heiko
+        assert participant_results_list[1]["name"] == "pt7" # make sure heiko is number 1
+        x_values = x_values[1:] # then because heiko had the first proms we throw him out.
+        for strang_index in range(len(metric_strings)):
+            for metric_ind in range(len(metric_types)):
+                performance = subject_performance[strang_index][metric_ind]
+                assert participant_results_list[1]["name"] == "pt7" # make sure heiko is number 1
+                performance = np.hstack([performance[:, :1], performance[:, 2:]]) # take out heiko
+                y_values = [np.mean(performance[:,i]) for i in range(len(performance[0]))]
+                errs = [np.std(performance[:, i]) for i in range(len(performance[0]))]
+                if len(y_values) > 4: # number of participants in pilot with measured prom scores (the last five) - heiko
+                    y_values = y_values[-4:]
+                    errs = errs[-4:]
+                ax_ob = axes[strang_index, metric_ind]
+                ax_ob.scatter(x_values, y_values, color=colors[strang_index])
+                ax_ob.errorbar(x_values, y_values, yerr=errs, fmt="o")
+                ax_ob.set_xlabel("PROMS score")
+                ax_ob.set_ylabel(f"{metric_strings[strang_index]}")
+                slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x_values, y_values)
+                ax_ob.plot(([np.min(x_values), np.max(x_values)]), slope * np.array([np.min(x_values), np.max(x_values)]) + intercept)
+                ax_ob.set_title(f"{metric_strings[strang_index]}, {metric_types[metric_ind]} vs PROMS, r={round_sig(r_value)}")
+        plt.tight_layout()
+        plt.draw()
+        plt.pause(0.001)
 
 
+    return
 
-
-# def cluster_intervals(num_intervals, gt_intervals)
 # _____________________________________________________
 # _____________________### MAIN ###____________________
 
@@ -967,7 +1214,8 @@ if __name__ == '__main__':
     # file_stems = ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
     # file_stems = ['2022_03_23_13_46_12_pp4', '2022_03_24_16_20_37_pp4', '2022_03_25_15_29_53_pp4']
     # file_stems =  ['2022_03_27_13_56_12_pp5']
-    file_stems_all = [['2022_03_29_14_47_38_pp6', '2022_03_30_14_29_49_pp6'], \
+    # file_stems = ['2022_03_29_14_47_38_pp6', '2022_03_30_14_29_49_pp6'], \
+    file_stems_all = [ ['2022_03_29_14_47_38_pp6', '2022_03_30_14_29_49_pp6'], \
         ['2022_03_30_13_23_09_pp7', '2022_03_31_13_19_05_pp7', '2022_04_01_13_30_32_pp7'], \
         ['2022_03_30_16_18_53_pp8', '2022_03_31_16_09_58_pp8', '2022_04_01_16_17_46_pp8'], \
         ['2022_04_01_19_39_42_pp9', '2022_04_02_16_43_08_pp9', '2022_04_03_13_51_14_pp98'], \
@@ -975,6 +1223,7 @@ if __name__ == '__main__':
         ['2022_04_11_15_56_10_pp11','2022_04_12_15_27_18_pp11', '2022_04_13_13_37_03_pp11']]
     names = ["pt6", "pt7", "pt8", "pt9", "pt10", "pt11"]
     conditions = ["audio", "audio", "audio", "tactile", "ems", "ems"]
+    cond_by_ppt_list = conditions
 
 
     num_unique_rhythms = 4
@@ -986,10 +1235,10 @@ if __name__ == '__main__':
         'vads' : np.zeros([num_unique_rhythms,3,8,2])
     } 
     change_in_performance_dictionary = {
-        'emds' : np.zeros([num_unique_rhythms, 7]),
-        'twds' : np.zeros([num_unique_rhythms, 7]),
-        'mads' : np.zeros([num_unique_rhythms, 7]),
-        'vads' : np.zeros([num_unique_rhythms, 7])
+        'emds' : np.zeros([num_unique_rhythms, 5]),
+        'twds' : np.zeros([num_unique_rhythms, 5]),
+        'mads' : np.zeros([num_unique_rhythms, 5]),
+        'vads' : np.zeros([num_unique_rhythms, 5])
     }
     participant_results_dict = {
         "test_performance" : test_performance_dictionary,
@@ -999,10 +1248,15 @@ if __name__ == '__main__':
         # also slope, intercept of line of best fit and correlation coefficient, and p val on corr coef
     # four rhythms, three days, 8 presentations of each rhythm in that day, mean then sd
     metric_strings = test_performance_dictionary.keys() # get names of each metric (emd, twd, mad vad)
+    metric_strings  = list(metric_strings)
+    metric_strings = [metric_strings[0]] + metric_strings[2:]
 
     participant_results_list = []
     for participant in range(len(names)):
-        participant_results_list.append(copy.deepcopy(participant_results_dict))
+        copied_dict = copy.deepcopy(participant_results_dict)
+        copied_dict["name"] = names[participant]
+        copied_dict["condition"] = conditions[participant]
+        participant_results_list.append(copied_dict)
 
 
     for pt_index in range(len(names)):
@@ -1091,57 +1345,22 @@ if __name__ == '__main__':
                     plot_blocks_results_dict = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
                     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, contact_x_interped, reading_list_interped, contact_x_interped, reading_list_interped, contact_x_interped, plot_flag)
 
+
                     pres_index = int(np.floor((rhythm_index)/num_unique_rhythms)) # first set of rhythms or second
                     for strang in metric_strings: # for every metric
                         # put first test block mean/median into dictionary
-                        first_test_block = np.nanmedian(plot_blocks_results_dict[strang][1][0:1])
-                        if np.isnan(first_test_block):
-                            stop = 1
-                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms][0] = first_test_block
-                        
-                        # put second test block mean/median into dict
-                        second_test_block = np.nanmedian(plot_blocks_results_dict[strang][4][0:1])
-                        if np.isnan(second_test_block):
-                            stop = 1
-                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms + 1][0] = second_test_block
-                        # put first test block standard dev into dict
-                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms][1] = np.nanstd(plot_blocks_results_dict[strang][1])
-                        # put second test block standard dev into dict
-                        participant_results_list[pt_index]["test_performance"][strang][rhythm_index%num_unique_rhythms][session_number][pres_index*num_unique_rhythms + \
-                            bpm_index*num_unique_bpms + 1][1] = np.nanstd(plot_blocks_results_dict[strang][4])
-        
-        for rhythm_index in range(num_unique_rhythms):
-            for strang in metric_strings: # for every metric   
-                sessions = [0, 1, 2]
-                first_session = 0
-                # for this rhythm, all sessions together, all data points, only the means.
-                all_sessions_array = participant_results_list[pt_index]["test_performance"][strang][rhythm_index][:,:,0]
-                if sum(all_sessions_array[2]) == 0:
-                    all_sessions_array = all_sessions_array[0:2]
-                all_sesh_array = np.hstack(all_sessions_array)
-                x = np.arange(len(all_sesh_array))
-                nan_mask = ~np.isnan(all_sesh_array)
-                all_sesh_array = all_sesh_array[nan_mask]
-                x = x[nan_mask]
-                slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, all_sesh_array)
-                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][3] = slope
-                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][4] = intercept
-                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][5] = r_value
-                participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][6] = p_value
-                
-                for session_num in sessions:
-                    # get for [each index] at [each rhythm] for [the first session], [the first two datapoints], [their means].
-                    change_in_performance = np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][first_session][0:1][0]) - \
-                        np.mean(participant_results_list[pt_index]["test_performance"][strang][rhythm_index][session_num][7:8][0])
-                    #first two data points of first session - last two of first second and third
-                    participant_results_list[pt_index]["change_in_performance"][strang][rhythm_index][session_num] = change_in_performance
-                    # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
-            
-        plot_all_blocks(participant_results_list[pt_index], header_dict['rhythm_strings_names'], pt_name, condition)
-    # cumulative_plot(participant_results_list)
+                        place_in_list(plot_blocks_results_dict, participant_results_list, strang, rhythm_index, num_unique_rhythms, session_number, bpm_index, num_unique_bpms, pres_index)
+        regress_participant_array(num_unique_rhythms, metric_strings, participant_results_list, pt_index, day=ems_constants.day)
+        # plot_all_blocks(participant_results_list[pt_index], header_dict['rhythm_strings_names'], pt_name, condition)
+
+    cumulative_plot(participant_results_list, cond_by_ppt_list)
+    plot_change_performance_sessions(participant_results_list, num_unique_rhythms, metric_strings, normed=False, day='last', subject_ids=names)
+    plot_change_performance_sessions(participant_results_list, num_unique_rhythms, metric_strings, normed=True, day='last', subject_ids=names, plot_subject=False)
+    plot_change_performance_sessions(participant_results_list, num_unique_rhythms, metric_strings, normed=False, day='first', subject_ids=names)
+    plot_change_performance_sessions(participant_results_list, num_unique_rhythms, metric_strings, normed=True, day='first', subject_ids=names, plot_subject=False)
+
+    x=1
+    
 
                     ## check delays markers
                     # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \
@@ -1194,10 +1413,10 @@ if __name__ == '__main__':
     # plot_learning_traces(all_rhythms_mean_flag, list_of_phases_to_plot, title_name, scores_by_rhythm, scores_by_session, header_dict, v_line_1=0, v_line_2=0)
     
 
-        
+    
         
 
-end = 3
+    end = 3
 
 
 

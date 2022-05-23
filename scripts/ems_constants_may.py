@@ -1,7 +1,6 @@
 import numpy as np
 # set vars
 
-
 # CURRENT PARAMS FOR NICK: 7 intensity 150 ms.
 practice_rhythm = "1000100000100000"
 demo_rhythm = "1000100010010010"
@@ -40,16 +39,16 @@ alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea",
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
 # rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
-rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
-# rhythm_strings = [syncopated_substr] 
+# rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
+rhythm_strings = [syncopated_substr] 
 # rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
 # clave_substr, five_to_four_substr, three_to_four_substr,  \
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
 # rhythm_strings_names = ['to_the_beat_substr_1', 'flip_the_beat_1', 'random_three_march_22_1', 'random_four_march_22_1', 'to_the_beat_substr_2', 'flip_the_beat_2',  'random_three_march_22_2', 'random_four_march_22_2'] 
-rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
-# rhythm_strings_names = ['syncopated_substr']
+# rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
+rhythm_strings_names = ['syncopated_substr']
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
@@ -57,11 +56,7 @@ rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
 # bpms = [100, 160, 140, 120] # shuffled  
 bpms = [130]
-# bpms = [130]
-# repeats = 4 # ems and audio period repeats
-# audio_repeats = 4
-# post_ems_repeats = 4 # how many post ems repeats
-# no_audio_repeats = 4
+practice_rhythm_repeats = 4
 sound_feedback_mode_flag = 0
 sound_feedback_time_length = 270 # ms. measured by recording audio and tapping the sensor loudly and measuring time to the following tone.
 prep_time_ms = 100
@@ -70,16 +65,24 @@ refractory_period_ms = 250
 audio_delay = 0.0023 # but why
 delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
 # bpm = 120 # beats per minute
-phase_flags_list = [1, 1, 1, 1, 1] # turns a phase on or off
-phase_repeats_list = [8, 4, 7, 1, 4] # repeats at each phase
-demo_phase_repeats_list = [5, 3, 4, 1, 3] # repeats at each phase
-phase_name_strs = ["pre ems audio", "pre ems no audio", "ems", "post ems audio", "post ems no audio"] # name phases
-phase_warning_strs =  ["TRAINING", "METRONOME TESTING", "EXPERIMENTAL TRAINING", "AUDIO ADJUST BLOCK", "METRONOME TESTING"] # name phases
+input_mode = 'key'
+# input_mode = 'contact'
+ems_on = 1
+if input_mode == 'key':
+    ems_on = 0
+    delay_mode = 'key'
+repeats = 16
+phase_flags_list = [1, 1, 1, 1]*repeats # turns a phase on or off
+phase_repeats_list = [1, 2, 1, 2]*repeats # repeats at each phase 
+phase_name_strs = ["pre-audio", "experimental", "post-audio", "test"] # name phases
+phase_warning_strs = []
+for i in range(repeats):
+    phase_warning_strs = phase_warning_strs + [f"Trial {i+1} of {repeats} - PRE-AUDIO", "EXPERIMENTAL", "POST-AUDIO", "TEST"]
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
-audio_on_flags = [1, 0, 1, 1, 0] # at each phase, whether the audio is on
-ems_on_flags = [0, 0, 1, 0, 0]
+audio_on_flags = [1, 1, 1, 0]*repeats # at each phase, whether the audio is on
+ems_on_flags = [0, 1, 0, 0]*repeats
 metronome_intro_flag = 1 # if we want a count in
-samp_period_ms = 5 # milliseconds
+samp_period_ms = 4 # milliseconds
 delay_trial_num = 12 # if measuring delay, this is how many trials we use
 sleep_len_ms = 1000 # seconds of waiting while zeroing sensor
 sd_more_than_mult = 7 # deprecated
@@ -121,13 +124,12 @@ counter_balanced_number_dict = {
     "4" : "audio pre-test",
     '' : "no given condition..."
 }
-day = 'last'
-proms_scores = [10.5, 15.5, 11.5, 11, 10]
-proms_participants = [7, 8, 9, 10, 11]
+
 buffer_time_after = 50 # ms. the time after a given audio onset to look for contact onsets to estimate user performance of that interval.
 
 
 runtime_parameters = {
+    "repeats" : repeats,
     "to_the_beat_substr" : to_the_beat_substr,
     "random_three" : random_three,
     "random_four" : random_four,
@@ -170,6 +172,7 @@ runtime_parameters = {
     "audio_delay" : audio_delay, # but why
     "delay_mode" : delay_mode, # could be contact or key for keyboard p key sensitivity for measuring delay
     # bpm : 120 # beats per minute
+    "input_mode" : input_mode, # if 'contact' use contact sensor if 'key' use space bar.
     "phase_flags_list" : phase_flags_list,
     "metronome_intro_flag" : metronome_intro_flag, # if we want a count in
     "samp_period_ms" : samp_period_ms, # milliseconds

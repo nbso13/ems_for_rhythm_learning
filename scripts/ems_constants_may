@@ -1,7 +1,6 @@
 import numpy as np
 # set vars
 
-
 # CURRENT PARAMS FOR NICK: 7 intensity 150 ms.
 practice_rhythm = "1000100000100000"
 demo_rhythm = "1000100010010010"
@@ -121,9 +120,7 @@ counter_balanced_number_dict = {
     "4" : "audio pre-test",
     '' : "no given condition..."
 }
-day = 'last'
-proms_scores = [10.5, 15.5, 11.5, 11, 10]
-proms_participants = [7, 8, 9, 10, 11]
+
 buffer_time_after = 50 # ms. the time after a given audio onset to look for contact onsets to estimate user performance of that interval.
 
 
