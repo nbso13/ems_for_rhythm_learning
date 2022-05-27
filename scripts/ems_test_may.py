@@ -1,3 +1,4 @@
+from textwrap import shorten
 import numpy as np
 import warnings
 import pickle
@@ -107,7 +108,10 @@ def rhythm_silence(rhythm_substr, milliseconds_per_eighthnote, last_time):
 def run_rhythm_ems_new(ems_serial, time_naught_thread,  \
         stim_onset_times, ems_times, update_period_ms, refractory_period_ms):
     # runs ems. vars:
-    print("starting ems thread....")
+    print("starting ems thread.")
+    if ems_constants_may.ems_on == 0:
+        print('ems_flag is off.')
+        return
 
     assert refractory_period_ms >= 1.5*ems_constants_may.actual_stim_length, "refrac_period_too_short!" # otherwise the refractory period does nothing.
     
@@ -784,7 +788,7 @@ def measure_delay_loop(baseline_mean=100, baseline_sd = 0, ems_serial=0, contact
                 delay_mean, delay_std, reaction_onsets, stim_onsets, \
                 reading_results, contact_x_values = measure_delay(ems_constants_may.actual_stim_length, \
                     ems_constants_may.delay_trial_num, ems_constants_may.sleep_len_ms, ems_constants_may.samp_period_ms,  \
-                    ems_constants_may.sd_more_than_mult, ems_constants_may.baseline_subtractor, baseline_mean, baseline_sd, ems_serial = ems_serial, contact_serial = contact_serial)
+                    ems_constants_may.sd_more_than_mult, ems_constants_may.baseline_subtractor, baseline_mean, baseline_sd, ems_serial = ems_serial, contact_ser = contact_serial)
             elif ems_constants_may.input_mode == 'key':
                 delay_mean, delay_std, reaction_onsets, stim_onsets, \
                 reading_results, contact_x_values = measure_delay(ems_constants_may.actual_stim_length, \
@@ -832,10 +836,13 @@ def gather_subject_info():
     pulse_width = input("pulse width?")
     pulse_frequency = input("frequency?") #these may be found on the stimulator and are not usually iterated on (using lit values)
     years_musical_training = input("years musical training?")
-    counter_balanced_number = input("counter balanced number?") ##### 1--actuating EMS, 2---tactile, 3--no ems
+    coffee = input("how many cups of coffee have you had to drink in the last 5 hours?")
+    alc = input("how many alcoholic drinks have you had in the last 5 hours?")
+    counter_balanced_string = input("counter balanced string? audio/tactile/ems") ##### 1--actuating EMS, 2---tactile, 3--no ems
+    proms_score = input("PROMS score?")
     print("Participant info collection complete. \n \n")
     
-    return participant_number, participant_gender, participant_age, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency, years_musical_training, tactile_ems_stim_intensity, counter_balanced_number, dom_arm
+    return participant_number, participant_gender, participant_age, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency, years_musical_training, tactile_ems_stim_intensity, counter_balanced_string, dom_arm, proms_score, coffee, alc
 
 def rotate_list(l, n):
     return l[-n:] + l[:-n]
@@ -843,7 +850,7 @@ def rotate_list(l, n):
 def initialize_workbook_and_gather_info(measured_delay, delay_std, baseline_mean, baseline_sd, end_to_end_late_value):
     ### Gathering subject info ###
     participant_number, participant_gender, participant_age, test_time, subject_arm, electrode_config, max_ems_stim_intensity, pulse_width, pulse_frequency, years_musical_training, \
-        tactile_ems_stim_intensity, counter_balanced_number, dom_arm = gather_subject_info()
+        tactile_ems_stim_intensity, counter_balanced_string, dom_arm, proms_score, coffee, alc = gather_subject_info()
 
     ### open workbook, define worksheets ###
     workbook = xlsxwriter.Workbook(f"data/{test_time}_pp{participant_number}.xlsx")
@@ -868,11 +875,14 @@ def initialize_workbook_and_gather_info(measured_delay, delay_std, baseline_mean
         "zeroed sd" : baseline_sd, 
         "end_to_end_latency" : end_to_end_late_value,
         "years musical training" : years_musical_training,
-        "counter-balanced-number" : counter_balanced_number,
+        "counter-balanced-string" : counter_balanced_string,
+        "proms_score": proms_score,
+        "coffee" : coffee,
+        "alc" : alc,
         "total_study_time_elapsed" : None
 
     }
-    return participant_info_dictionary, workbook, bold
+    return participant_info_dictionary, workbook, bold, counter_balanced_string
 
 def per_rhythm_check_in():
     input("Ready to continue the testing? Enter to continue")
@@ -967,12 +977,21 @@ def author_time_course(rhythm_substr, milliseconds_per_eighthnote, phase_repeats
 
 
 
-def play_rhythm_new(actual_stim_length, rhythm_substr, bpm,  phase_flags_list, phase_repeats_list,  \
-    samp_period_ms, delay_val, prep_time_ms, update_period_ms, refractory_period_ms, phase_warn_strs, ems_serial=0, contact_ser=0):
+def play_rhythm_new(actual_stim_length, rhythm_substr, bpm,  phase_flags_list_in, phase_repeats_list_in,  \
+    samp_period_ms, delay_val, prep_time_ms, update_period_ms, refractory_period_ms, phase_warn_strs_in, ems_serial=0, contact_ser=0, shorten_divisor_num = 0):
     # mammoth function that should be broken up. takes in serial objects, rhythm parameters,
         # whether the EMS and the audio should be turned on, whether there should be a metronome intro,
         # sample period, and measured delay value. Plays the rhythm in audio and EMS and runs threading
         # to listen to user results.
+
+    if shorten_divisor_num > 0:
+        phase_flags_list = phase_flags_list_in[0:round(len(phase_flags_list_in)/shorten_divisor_num)]
+        phase_repeats_list = phase_repeats_list_in[0:round(len(phase_repeats_list_in)/shorten_divisor_num)]
+        phase_warn_strs = phase_warn_strs_in[0:round(len(phase_warn_strs_in)/shorten_divisor_num)]
+    else:
+        phase_flags_list = phase_flags_list_in
+        phase_repeats_list = phase_repeats_list_in
+        phase_warn_strs = phase_warn_strs_in
 
 
     reading_results = [] # a list that is written to by the thread that is the contact
@@ -1118,40 +1137,52 @@ def initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm, rhy
 
     return reading_list, contact_x_values
 
-def write_header_and_data_vals(data_header, arrs_to_write, worksheet, bold):
+def write_header_and_data_vals(data_header, arrs_to_write, worksheet, bold, question_set, responses):
     for i in range(len(data_header)):
         worksheet.write(0, i, data_header[i], bold)       
 
     for i in range(len(arrs_to_write)):
         for row_num, data in enumerate(arrs_to_write[i]):
             worksheet.write(row_num + ems_constants_may.worksheet_data_begin_indices[0], ems_constants_may.worksheet_data_begin_indices[1] + i, data)
+    for question_index in range(len(question_set)): 
+        worksheet.write(question_index+ems_constants_may.worksheet_data_begin_indices[0], ems_constants_may.worksheet_data_begin_indices[1] + i + 1, question_set[question_index])
+        worksheet.write(question_index+ems_constants_may.worksheet_data_begin_indices[0], ems_constants_may.worksheet_data_begin_indices[1] + i + 2, responses[question_index])
     return
 
 def practice_loop(measured_delay, rhythm, bpm, rhythm_name, ems_serial=0, contact_serial=0):
     out = input("Practice initiate? y/n")
-    phase_flag_list = ems_constants_may.phase_flags_list[0:round(len(ems_constants_may.phase_flags_list)/8)]
-    phase_repeat_list = ems_constants_may.phase_repeats_list[0:round(len(ems_constants_may.phase_repeats_list)/8)]
-    phase_warn_strs = ems_constants_may.phase_warning_strs[0:round(len(ems_constants_may.phase_warning_strs)/8)]
     if out == 'y':
         repeat = True
         while repeat:
             if ems_constants_may.input_mode == 'contact' and ems_constants_may.ems_on == 1:
                 reading_list, contact_x_values, audio_onset_times, stim_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm, \
-                    bpm, phase_flag_list, phase_repeat_list, ems_constants_may.samp_period_ms, measured_delay,\
-                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, phase_warn_strs, ems_serial=ems_serial, contact_serial=contact_serial)
+                    bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, measured_delay,\
+                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, ems_serial=ems_serial, contact_ser=contact_serial, shorten_divisor_num=6)
             elif ems_constants_may.input_mode == 'contact' and ems_constants_may.ems_on == 0:
                 reading_list, contact_x_values, audio_onset_times, stim_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm, \
-                    bpm, phase_flag_list, phase_repeat_list, ems_constants_may.samp_period_ms, measured_delay,\
-                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, phase_warn_strs, contact_serial=contact_serial)
+                    bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, measured_delay,\
+                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial, shorten_divisor_num=6)
                 stim_onset_times = [audio_onset_times[0]]
             elif ems_constants_may.input_mode == 'key':
                 reading_list, contact_x_values, audio_onset_times  = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm, \
-                     bpm, phase_flag_list, phase_repeat_list, ems_constants_may.samp_period_ms, measured_delay,\
-                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, phase_warn_strs)
+                     bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, measured_delay,\
+                        ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, shorten_divisor_num=6)
                 stim_onset_times = [audio_onset_times[0]]
             start_time_stim = stim_onset_times[0]
             initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm, rhythm_name, stim_onset_times, audio_onset_times, start_time_stim)
 
+            input("now you would wait for 5 minutes of a break, and then conduct the recall test. Hit enter to conduct short recall test.")
+            ems_mode_current_state = ems_constants_may.ems_on
+            ems_constants_may.ems_on = 0 # turn it off definitely for testing
+            _, _, _, _ = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, measured_delay,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial, shorten_divisor_num=6)
+            # play naive rhythm
+            input("press enter to continue with new rhythm.")
+            _, _, _, _ = play_rhythm_new(ems_constants_may.actual_stim_length,  ems_constants_may.practice_naive_rhythm_substr, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, measured_delay,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial, shorten_divisor_num=6)
+            ems_constants_may.ems_on = ems_mode_current_state
             out = input("practice again? y/n")
             if out == 'n':
                 repeat = False
@@ -1228,7 +1259,12 @@ def tester():
     assert count_zero_gaps('01001011011001') == [1,2,1,0,1,0,2,0], "count zero gaps failed."
     return
 
-
+def ask_qual_questions(questions, question_set_template, responses):
+    questions = questions + question_set_template
+    for question_index in range(len(question_set_template)):
+        response = input(question_set_template[question_index])
+        responses.append(response)
+    return responses, questions
 
 # _____________________________________________________
 # _____________________### MAIN ###____________________
@@ -1262,11 +1298,11 @@ if __name__ == '__main__':
         sleep_len_ms = ems_constants_may.sleep_len_ms
         if ems_constants_may.input_mode == 'contact':
             baseline_mean, baseline_sd = zero_sensor(contact_serial, sleep_len_ms, ems_constants_may.samp_period_ms)
-            delay_mean, delay_std = measure_delay_loop(baseline_mean=baseline_mean, baseline_sd = baseline_sd, ems_serial=ems_serial, contact_serial=contact_serial,)    
+            delay_mean_measured, delay_std = measure_delay_loop(baseline_mean=baseline_mean, baseline_sd = baseline_sd, ems_serial=ems_serial, contact_serial=contact_serial)    
     
         ### MEASURE DELAY # TUNE THIS TO KASAHARA RESPONSE TIME, GET RESULTS REGARDING AGENCY AND MEASURE TRAINING RESULT
         elif ems_constants_may.input_mode == 'key':
-            delay_mean, delay_std = measure_delay_loop() 
+            delay_mean_measured, delay_std = measure_delay_loop() 
             baseline_mean = 'na'
             baseline_sd = 'na'   
 
@@ -1278,14 +1314,14 @@ if __name__ == '__main__':
         ### PRACTICE MIMICKING RHYTHMS
         rhythm_name = "practice rhythm"
         if ems_constants_may.input_mode == "key":
-            practice_loop(delay_mean, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name)
+            practice_loop(delay_mean_measured, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name)
         elif ems_constants_may.input_mode == "contact" and ems_constants_may.ems_on == 0:
-            practice_loop(delay_mean, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name, ems_serial=ems_serial, )
+            practice_loop(delay_mean_measured, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name, ems_serial=ems_serial, )
         elif ems_constants_may.input_mode == "contact" and ems_constants_may.ems_on == 1:
-            practice_loop(delay_mean, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name, ems_serial=ems_serial, )
+            practice_loop(delay_mean_measured, ems_constants_may.practice_rhythm, ems_constants_may.practice_bpm, rhythm_name, ems_serial=ems_serial, contact_serial=contact_serial )
     
     elif out == 'y':
-        delay_mean = 200
+        delay_mean_measured = 200
         delay_std = 0
         baseline_mean = 0.1
         baseline_sd = 0
@@ -1300,18 +1336,25 @@ if __name__ == '__main__':
 
     ### GATHER SUBJECT INFO AND INITIALIZE WORKBOOK
 
-    participant_info_dictionary, workbook, bold = initialize_workbook_and_gather_info(delay_mean, delay_std, baseline_mean, baseline_sd, end_to_end_late_value)
-
+    participant_info_dictionary, workbook, bold, counter_balanced_string = initialize_workbook_and_gather_info(delay_mean_measured, delay_std, baseline_mean, baseline_sd, end_to_end_late_value)
+    if counter_balanced_string == "tactile": # tactile
+        delay_mean = 0
+    else:
+        delay_mean = delay_mean_measured
     ## initialize some things ## 
-    data_header = ["time values (ms)", "contact trace", "stim time onsets", "audio time onsets"]
+    data_header = ["time values (ms) training", "contact trace training", "stim time onsets training", "audio time onsets training", \
+        "time values (ms) testing", "contact trace testing", "stim time onsets testing", "audio time onsets testing", \
+        "time values (ms) naive", "contact trace naive", "stim time onsets naive", "audio time onsets naive"]
+    
     bpm = ems_constants_may.bpms[0]
 
     ### run main experiment ###
     for rhythm_index in range(len(ems_constants_may.rhythm_strings)): # for each of the different rhythms
         
         rhythm_substr = ems_constants_may.rhythm_strings[rhythm_index]
+        naive_rhythm_substr = ems_constants_may.naive_rhythm_strings[rhythm_index]
         rhythm_name = ems_constants_may.rhythm_strings_names[rhythm_index]
-
+        
         per_rhythm_check_in()
         print(f'rhythm {rhythm_index+1} of {len(ems_constants_may.rhythm_strings)}')
         time.sleep(1) #
@@ -1320,31 +1363,93 @@ if __name__ == '__main__':
         if ems_constants_may.input_mode == 'contact' and ems_constants_may.ems_on == 1:
             reading_list, contact_x_values, audio_onset_times, stim_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm_substr, \
                 bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
-                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, ems_serial=ems_serial, contact_serial=contact_serial)
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, ems_serial=ems_serial, contact_ser=contact_serial)
         elif ems_constants_may.input_mode == 'contact' and ems_constants_may.ems_on == 0:
             reading_list, contact_x_values, audio_onset_times, stim_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm_substr, \
                 bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
-                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_serial=contact_serial)
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial)
             stim_onset_times = [audio_onset_times[0]]
         elif ems_constants_may.input_mode == 'key':
             reading_list, contact_x_values, audio_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm_substr, \
                 bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
                 ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs,)
             stim_onset_times = [audio_onset_times[0]]
-        start_time_stim = stim_onset_times[0]
         reading_list_out, contact_x_values_out = initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm_substr, rhythm_name, stim_onset_times, audio_onset_times, start_time_stim)
 
-        arrs_to_write = [contact_x_values_out, reading_list_out, stim_onset_times, audio_onset_times]
+        
+        
+        ### BREAK ###
+        input("Now set a timer for a five minute break before recall testing. Then immediately hit enter to continue with questions.")
+        question_set_template = ems_constants_may.qualitative_question_set
+        responses = []
+        questions = question_set_template
+        for question_index in range(len(question_set_template)):
+            response = input(question_set_template[question_index])
+            responses.append(response)
+
+        input("Enter to continue with recall testing when timer ends.")
+
+        ### TESTING ###
+        if ems_constants_may.input_mode == 'contact':
+            # play test run (ONLY AUDIO MODE - EMS off)
+            ems_mode_current_state = ems_constants_may.ems_on
+            ems_constants_may.ems_on = 0 # turn it off definitely for testing
+            reading_list_test, contact_x_values_test, audio_onset_times_test, _ = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm_substr, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial, shorten_divisor_num=3)
+            # play naive rhythm
+            questions = questions + question_set_template
+            for question_index in range(len(question_set_template)):
+                response = input(question_set_template[question_index])
+                responses.append(response)
+            input("press enter to continue with new rhythm.")
+            reading_list_naive, contact_x_values_naive, audio_onset_times_naive, _ = play_rhythm_new(ems_constants_may.actual_stim_length,  naive_rhythm_substr, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, contact_ser=contact_serial, shorten_divisor_num=3)
+            ems_constants_may.ems_on = ems_mode_current_state
+
+        elif ems_constants_may.input_mode == 'key':
+            reading_list_test, contact_x_values_test, audio_onset_times_test = play_rhythm_new(ems_constants_may.actual_stim_length,  rhythm_substr, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, shorten_divisor_num=3)
+            questions = questions + question_set_template
+            for question_index in range(len(question_set_template)):
+                response = input(question_set_template[question_index])
+                responses.append(response)
+            reading_list, contact_x_values, audio_onset_times = play_rhythm_new(ems_constants_may.actual_stim_length,  naive_rhythm_substr, \
+                bpm, ems_constants_may.phase_flags_list, ems_constants_may.phase_repeats_list, ems_constants_may.samp_period_ms, delay_mean,\
+                ems_constants_may.prep_time_ms, ems_constants_may.update_period_ms, ems_constants_may.refractory_period_ms, ems_constants_may.phase_warning_strs, shorten_divisor_num=3)
+        questions = questions + question_set_template
+        for question_index in range(len(question_set_template)):
+            response = input(question_set_template[question_index])
+            responses.append(response)
+        
+        elapsed = time.time() - tic
+        print("time elapsed (mins): " + str(elapsed/60))
+        
+        stim_onset_times = [audio_onset_times[0]]
+        start_time_stim = stim_onset_times[0]
+        reading_list_out_test, contact_x_values_out_test = initial_preprocess_and_plot(reading_list_test, contact_x_values_test, bpm, rhythm_substr, rhythm_name + "_test", stim_onset_times, audio_onset_times_test, start_time_stim)
+
+        reading_list_out_naive, contact_x_values_out_naive = initial_preprocess_and_plot(reading_list_naive, contact_x_values_naive, bpm, naive_rhythm_substr, rhythm_name + "_naive", stim_onset_times, audio_onset_times_naive, start_time_stim)
+
+        arrs_to_write = [contact_x_values_out, reading_list_out, stim_onset_times, audio_onset_times, contact_x_values_out_test, reading_list_out_test, audio_onset_times_test, contact_x_values_out_naive, reading_list_out_naive, audio_onset_times_naive ]
 
         worksheet = workbook.add_worksheet(f"{rhythm_name}") 
+        
+        elapsed = time.time() - tic
+        print("time elapsed (mins): " + str(elapsed/60))
 
         ## write header and data values ##
-        write_header_and_data_vals(data_header, arrs_to_write, worksheet, bold)
+        write_header_and_data_vals(data_header, arrs_to_write, worksheet, bold, question_set, responses)
 
-
-    worksheet = workbook.add_worksheet("likert scale results") 
-    data = input("Likert scale results? scale of 1-7. 1 is no agency 7 is complete agency.")
-    worksheet.write(1, 1, data)
+    worksheet = workbook.add_worksheet("open_ended_questions") 
+    open_ended_question = "RECORD WITH IPHONE: In a few sentences, how would you describe your experience today in learning these rhythms with the training system? What were your impressions? \n How did the training system feel? If applicable, how did it compare to earlier days in the experiment?"
+    open_ended_answer = input(open_ended_question)
+    worksheet.write(1, 1, open_ended_question)
+    worksheet.write(1, 1, open_ended_answer)
+        
+        
     toc = time.time()
     diff = toc-tic
     print("Time elapsed: " + str(diff))

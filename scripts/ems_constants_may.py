@@ -2,9 +2,10 @@ import numpy as np
 # set vars
 
 # CURRENT PARAMS FOR NICK: 7 intensity 150 ms.
-practice_rhythm = "1000100000100000"
+practice_rhythm = "1000100010000100"
+practice_naive_rhythm_substr = "1000001001000000"
 demo_rhythm = "1000100010010010"
-practice_bpm = 130
+practice_bpm = 145
 to_the_beat_substr = "1000100010001000"
 lunch_room_beat = "1000100010100010"
 clave_substr = "0010100010010010"
@@ -36,11 +37,23 @@ buleria = '000010000000101000100010'
 seguiria = '100010001000001000001000'
 guajira = '100000100000100010001000'
 alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea", "fandango", 
+
+easies = ['1000001000001000', '0010000010001000', '1000100000100000']
+mediums = ['0000000010010010', '0000100000100010', '1001001000000100']
+diffs = ['0010010010000100', '0100010001000100', '0001000001000010' ]
+naive_easies = ['0010001000100000', '1000001000100000', '0010000010001000']
+naive_mediums = ['0010000000100010','0010001000100010', '0010000010000010' ]
+naive_diffs = ['0000100001000001', '0010000001001001', '0100100001001000']
+
+day_num = int(input("experiment day number? (1, 2, or 3): ")) - 1
 # rhythm_strings = [to_the_beat_substr, random_generated_one,  three_to_four_substr, syncopated_substr, random_generated_two, telescoping] # 
 # rhythm_strings = [to_the_beat_substr, syncopated_substr, three_to_four_substr, random_three, random_four, lunch_room_beat, random_five] # 
 # rhythm_strings = [syncopated_substr, flip_the_beat, random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22, random_five] 
 # rhythm_strings = [random_three, random_two_march_22, random_three_march_22, random_four_march_22, random_three, random_two_march_22, random_three_march_22, random_four_march_22] 
-rhythm_strings = [syncopated_substr] 
+rhythm_strings = [easies[day_num], mediums[day_num], diffs[day_num]] 
+naive_rhythm_strings = [naive_easies[day_num], naive_mediums[day_num], naive_diffs[day_num]]
+rhythm_strings_names = [f"easy_{day_num+1}", f"medium_{day_num+1}", f"difficult_{day_num+1}" ]
+naive_rhythm_string_names = [f"naive_easy_{day_num+1}", f"naive_medium_{day_num+1}", f"naive_difficult_{day_num+1}" ]
 # rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
@@ -48,14 +61,14 @@ rhythm_strings = [syncopated_substr]
 #     syncopated_substr, bass_drum_pattern, flip_the_beat
 # rhythm_strings_names = ['to_the_beat_substr_1', 'flip_the_beat_1', 'random_three_march_22_1', 'random_four_march_22_1', 'to_the_beat_substr_2', 'flip_the_beat_2',  'random_three_march_22_2', 'random_four_march_22_2'] 
 # rhythm_strings_names = ['random_three_1', 'random_two_march_22_1', 'random_three_march_22_1', 'random_four_march_22_1', 'random_three_2', 'random_two_march_22_2', 'random_three_march_22_2', 'random_four_march_22_2']
-rhythm_strings_names = ['syncopated_substr']
+# rhythm_strings_names = ['syncopated_substr']
 # rhythm_strings_names = ["to_the_beat_substr", "random_generated_one", "three_to_four_substr", "syncopated_substr", "random_generated_two", "telescoping"] 
 # "lunch_room_beat", "seven_to_four", "three_to_four_substr", "bass_drum_pattern", "five_to_four_substr", "syncopated_substr", "telescoping", "flip_the_beat", "clave_substr"
 # , "clave", "five_to_four", "three_to_four", \
 #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
 # bpms_ordered = [100, 115, 130, 145, 160, 175] #bpms to try 
 # bpms = [100, 160, 140, 120] # shuffled  
-bpms = [130]
+bpms = [145]
 practice_rhythm_repeats = 4
 sound_feedback_mode_flag = 0
 sound_feedback_time_length = 270 # ms. measured by recording audio and tapping the sensor loudly and measuring time to the following tone.
@@ -63,21 +76,21 @@ prep_time_ms = 100
 update_period_ms = 2 
 refractory_period_ms = 250 
 audio_delay = 0.0023 # but why
-delay_mode = 'contact' # could be contact or key for keyboard p key sensitivity for measuring delay
-# bpm = 120 # beats per minute
-input_mode = 'key'
+input_mode = 'contact'
 # input_mode = 'contact'
 ems_on = 1
 if input_mode == 'key':
     ems_on = 0
     delay_mode = 'key'
-repeats = 16
+else:
+    delay_mode = 'contact'
+repeats = 10
 phase_flags_list = [1, 1, 1, 1]*repeats # turns a phase on or off
-phase_repeats_list = [1, 2, 1, 2]*repeats # repeats at each phase 
+phase_repeats_list = [1, 2, 1, 3]*repeats # repeats at each phase 
 phase_name_strs = ["pre-audio", "experimental", "post-audio", "test"] # name phases
 phase_warning_strs = []
 for i in range(repeats):
-    phase_warning_strs = phase_warning_strs + [f"Trial {i+1} of {repeats} - PRE-AUDIO", "EXPERIMENTAL", "POST-AUDIO", "TEST"]
+    phase_warning_strs = phase_warning_strs + [f"Trial {i+1} of {repeats} \nPRE-AUDIO", "EXPERIMENTAL", "POST-AUDIO", "TEST"]
 num_phases = len(phase_name_strs) # number of phases is number of names of phases
 audio_on_flags = [1, 1, 1, 0]*repeats # at each phase, whether the audio is on
 ems_on_flags = [0, 1, 0, 0]*repeats
@@ -94,8 +107,17 @@ contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms is there some measurement of sensor to computer delay??
-port_contact = '/dev/cu.usbmodem11201'
+port_contact = '/dev/cu.usbmodem11301'
 port_ems = '/dev/tty.usbserial-18DNB483'
+
+qualitative_question_set = ["How would you rate your performance, from 1 (very inaccurate) to 7 (very accurate), when the rhythm was played to you? \n (1) .... (7)", \
+
+"How would you rate your performance, from 1 (very inaccurate) to 7 (very accurate), during the metronome-only repeats (rhythm not played)? \n  (1) ....  (7)", \
+
+"Rate your agreement with the following statement: When the rhythm was played to me, my finger moved because I moved it. \n Completely agree (1) ... completely disagree (7)", \
+
+"Rate your agreement with the following statement: During the metronome-only repeats (rhythm not played), my finger moved because I moved it. \n Completely agree (1) ... completely disagree (7)"]
+
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
 phase_change_warnings_delay = 3000 # ms before phase change to warn participant
@@ -187,5 +209,6 @@ runtime_parameters = {
     "phase_name_strs" : phase_name_strs, # name phases
     "num_phases" : num_phases, # number of phases is number of names of phases
     "worksheet_data_begin_indices" : worksheet_data_begin_indices,# where empty data space begins in each worksheet
-    "sound_feedback_mode_flag" : sound_feedback_mode_flag
+    "sound_feedback_mode_flag" : sound_feedback_mode_flag,
+    "qualitative_question_set" : qualitative_question_set
 }

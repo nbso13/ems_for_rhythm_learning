@@ -114,7 +114,7 @@ def hierarchical_model(rhyth_string, ioi_ent_flag):
     if ioi_ent_flag:
         ent = ioi_ent(rhyth_string)
         if ent == 0: #not to discount these strings
-            ent = 0.1
+            ent = 0.5 # arbitrary one interval penalty
         normed_cross_ent = normed_cross_ent * ent
     return(normed_cross_ent)
         
@@ -158,8 +158,7 @@ def random_rhythm(length, num_rhyths, no_double_stroke_flag, num_onsets=0):
     else: 
         for number in rhyth_number_out:
             counter += 1
-            sys.stdout.write("\r" + f" sorting rhythm {counter} of {num_rhyths}")   #The \r is carriage return without a line 
-                                        #feed, so it erases the previous line.
+            sys.stdout.write("\r" + f" sorting rhythm {counter} of {num_rhyths}")  
             sys.stdout.flush()
             str_bin = bin(number)
             str_bin = str_bin[2:]
@@ -181,8 +180,12 @@ def random_rhythm(length, num_rhyths, no_double_stroke_flag, num_onsets=0):
     return bin_strs
 
 
-def rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag, num_onsets):
-    bin_list = random_rhythm(length, attempts, no_double_stroke_flag, num_onsets)
+def rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag, num_onsets_list):
+    bin_list = []
+    for num_onsets in num_onsets_list: # for each number of acceptable onsets generate those rhythms and add to one big list.
+        bin_list_add = random_rhythm(length, attempts, no_double_stroke_flag, num_onsets)
+        bin_list = bin_list + bin_list_add
+
     print("rhythms generated")
     scores = []
     ioi_ents = []
@@ -269,17 +272,23 @@ if __name__ == '__main__':
     length = 16
     attempts = 65500
 
-    model_score_ioi_ent_flag = 0 # if yes, include ioi entropy into model
-    bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=1, num_onsets=0)
+    model_score_ioi_ent_flag = 1 # if yes, include ioi entropy into model
+    target_scores = [4.5,6.5,8.5]
+    unique_flag = 1 # only return unique rhythms
+    num_closest_rhythms = 6 # return this many rhythms per score
+    num_onsets_target_list = [3, 4] # if not 0, requires selected rhythms to have this many onsets.
+
+    bin_list, scores, ioi_ents = rhythm_generator(length, attempts, model_score_ioi_ent_flag, no_double_stroke_flag=1, num_onsets_list=num_onsets_target_list)
     num_onsets = [rhythm.count('1') for rhythm in bin_list]
+    print("\n")
     if model_score_ioi_ent_flag:
-        for j in range(5, 9, 2):
-            rhythms, scores_out, _ = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=4, target_score=j, unique_flag=1)
+        for j in target_scores: # get scores
+            rhythms, scores_out, _ = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=num_closest_rhythms, target_score=j, unique_flag=unique_flag)
             for i in range(len(rhythms)):
                 print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}")
     else:
-        for j in range(8, 20, 2):
-            rhythms, scores_out, ioi_ents_out = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=3, target_score=j, unique_flag=1)
+        for j in target_scores:
+            rhythms, scores_out, ioi_ents_out = get_closest_n_rhythms(bin_list, scores, ioi_ents, n=num_closest_rhythms, target_score=j, unique_flag=unique_flag)
             for i in range(len(rhythms)):
                 print(f"Rhythm: {rhythms[i]}, score: {scores_out[i]}, ioi_ent: {ioi_ents_out[i]}")
 
@@ -289,6 +298,6 @@ if __name__ == '__main__':
     ax.set_title("Num Onsets vs Hierarchical Model Score")
     ax.set_ylabel("Num Onsets")
     ax.set_xlabel("Score")
-    ax.scatter(scores, num_onsets)
+    ax.scatter( num_onsets, scores)
 
     x = 2
