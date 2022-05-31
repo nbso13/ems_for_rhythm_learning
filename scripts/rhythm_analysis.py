@@ -13,6 +13,7 @@ import scipy
 from ems_test_analysis import count_intervals
 import sys 
 import time
+import ems_constants_may
 
 def bar_plot_scores(scores, title):
     fig, ax = plt.subplots()
@@ -241,14 +242,21 @@ if __name__ == '__main__':
     pos = []
     leng = []
 
-    for rhythm_ind in range(len(ems_constants.rhythm_strings)):
-        rhythm = ems_constants.rhythm_strings[rhythm_ind]
+    rhythz = [ems_constants_may.easies, ems_constants_may.mediums, ems_constants_may.diffs, ems_constants_may.naive_easies, ems_constants_may.naive_mediums, ems_constants_may.naive_diffs]
+    for rhyth in rhythz:
+        for i in rhyth:
+            print(f"rhythm: {i}, score: {hierarchical_model(i, ioi_ent_flag=0)}")
+
+        print("\n")
+
+    for rhythm_ind in range(len(ems_constants_may.easies)):
+        rhythm = ems_constants_may.easies[rhythm_ind]
         normed_cross_ent_hier = hierarchical_model(rhythm, ioi_ent_flag=1)
         hiers.append(normed_cross_ent_hier)
         normed_cross_ent_position = fine_grained_met(rhythm)
         pos.append(normed_cross_ent_position)
         leng.append(len(rhythm))
-        print(f"rhythm: {ems_constants.rhythm_strings_names[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
+        print(f"rhythm: {ems_constants_may.easies[rhythm_ind]} \n hierarchical ent: {normed_cross_ent_hier} \n metrical pos ent: {normed_cross_ent_position} \n \n")
     
     
     # MAKE BAR PLOT FIGURE

@@ -41,8 +41,8 @@ alegria = '000010000010001000100010' # guajira", "seguiria", "buleria", "solea",
 easies = ['1000001000001000', '0010000010001000', '1000100000100000']
 mediums = ['0000000010010010', '0000100000100010', '1001001000000100']
 diffs = ['0010010010000100', '0100010001000100', '0001000001000010' ]
-naive_easies = ['0010001000100000', '1000001000100000', '0010000010001000']
-naive_mediums = ['0010000000100010','0010001000100010', '0010000010000010' ]
+naive_easies = ['0010000010000010' , '1000001000100000', '0010000010001000']
+naive_mediums = ['0010001000100000', '0010000000100010','0010001000100010']
 naive_diffs = ['0000100001000001', '0010000001001001', '0100100001001000']
 
 day_num = int(input("experiment day number? (1, 2, or 3): ")) - 1
@@ -114,13 +114,13 @@ qualitative_question_set = ["How would you rate your performance, from 1 (very i
 
 "How would you rate your performance, from 1 (very inaccurate) to 7 (very accurate), during the metronome-only repeats (rhythm not played)? \n  (1) ....  (7)", \
 
-"Rate your agreement with the following statement: When the rhythm was played to me, my finger moved because I moved it. \n Completely agree (1) ... completely disagree (7)", \
+"Rate your agreement with the following statement: When the rhythm was played to me, when my finger moved it was because I moved it. \n Completely agree (1) ... completely disagree (7)", \
 
-"Rate your agreement with the following statement: During the metronome-only repeats (rhythm not played), my finger moved because I moved it. \n Completely agree (1) ... completely disagree (7)"]
+"Rate your agreement with the following statement: During the metronome-only repeats (rhythm not played), when my finger moved it was because I moved it. \n Completely agree (1) ... completely disagree (7)"]
 
 # port_ems = '/dev/ttys000' for bluetooth
 worksheet_data_begin_indices = [1, 0] # where empty data space begins in each worksheet
-phase_change_warnings_delay = 3000 # ms before phase change to warn participant
+phase_change_warnings_delay = 2000 # ms before phase change to warn participant
 verbose_mode = 0
 channel = 0
 read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
