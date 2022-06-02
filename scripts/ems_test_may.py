@@ -1,4 +1,5 @@
 from textwrap import shorten
+import copy
 import numpy as np
 import warnings
 import pickle
@@ -641,7 +642,7 @@ def measure_delay(actual_stim_length, trial_num, sleep_len, samp_period_ms, sd_m
     
     return mean_delay, std_delay, first_responses_post_stim, times_stimmed_ms, reading_results, x_value_results
 
-def test_double_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm):
+def test_double_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm, ems_channel_to_test):
     # tests sensation of double and triple strokes. This depends on stim length, stim intensity, and bom.
     milliseconds_per_eighthnote = 30000/bpm
     double_strokes = 4
@@ -652,11 +653,16 @@ def test_double_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm
         ems_times.append(time_val + 3*milliseconds_per_eighthnote)
         time_val += 7*milliseconds_per_eighthnote
 
+    channel_state = copy.copy(ems_constants_may.channel)
+    ems_constants_may.channel = ems_channel_to_test
+
     run_rhythm_ems_new(ems_serial, time.time(),  \
         [], ems_times=ems_times, update_period_ms=2, refractory_period_ms=actual_stim_length*1.8)
+
+    ems_constants_may.channel = channel_state
     return
         
-def test_single_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm):
+def test_single_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm, ems_channel_to_test):
     # tests sensation of double and triple strokes. This depends on stim length, stim intensity, and bom.
     milliseconds_per_eighthnote = 30000/bpm
     single_strokes = 4
@@ -665,9 +671,15 @@ def test_single_stroke(ems_serial, actual_stim_length, bpm, double_stroke_rhythm
     for i in range(single_strokes):
         ems_times.append(time_val)
         time_val += 6*milliseconds_per_eighthnote
+    
+    channel_state = copy.copy(ems_constants_may.channel)
+    ems_constants_may.channel = ems_channel_to_test
 
     run_rhythm_ems_new(ems_serial, time.time(),  \
         [], ems_times=ems_times, update_period_ms=2, refractory_period_ms=actual_stim_length*1.8)
+
+    ems_constants_may.channel = channel_state
+
     return
 
 def process_contact_trace_to_hit_times(contact_trace_array, x_values_array, threshold, surpression_window):
@@ -685,19 +697,38 @@ def process_contact_trace_to_hit_times(contact_trace_array, x_values_array, thre
     return time_points_out
 
 def wrapper_calibrator(ems_serial):
-    out = input("test single stroke sensation?")
+    out = input("test single stroke sensation medial electrode pair?")
     if out == 'y':
         contin = True
         while contin:
-            test_single_stroke(ems_serial, ems_constants_may.actual_stim_length, min(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm)
+            test_single_stroke(ems_serial, ems_constants_may.actual_stim_length, min(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm, ems_channel_to_test=0)
             out = input("adjust? a / continue? c")
             if out == 'c':
                 contin = False
-    out = input("test double stroke sensation?")
+    
+    out = input("test double stroke sensation medial electrode pair?")
     if out == 'y':
         contin = True
         while contin:
-            test_double_stroke(ems_serial, ems_constants_may.actual_stim_length, max(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm)
+            test_double_stroke(ems_serial, ems_constants_may.actual_stim_length, max(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm, ems_channel_to_test=0)
+            out = input("adjust? a / continue? c")
+            if out == 'c':
+                contin = False
+
+    out = input("test single stroke sensation lateral electrode pair?")
+    if out == 'y':
+        contin = True
+        while contin:
+            test_single_stroke(ems_serial, ems_constants_may.actual_stim_length, min(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm, ems_channel_to_test=1)
+            out = input("adjust? a / continue? c")
+            if out == 'c':
+                contin = False
+    
+    out = input("test double stroke sensation lateral electrode pair?")
+    if out == 'y':
+        contin = True
+        while contin:
+            test_double_stroke(ems_serial, ems_constants_may.actual_stim_length, max(ems_constants_may.bpms), ems_constants_may.double_stroke_rhythm, ems_channel_to_test=1)
             out = input("adjust? a / continue? c")
             if out == 'c':
                 contin = False
@@ -1413,11 +1444,15 @@ if __name__ == '__main__':
         if ems_constants_may.input_mode == 'contact':
             baseline_mean, baseline_sd = zero_sensor(contact_serial, sleep_len_ms, ems_constants_may.samp_period_ms)
             if counter_balanced_string == "t": # tactile
+                print("Using second channel.")
+                ems_constants_may.channel = 1 # make it tactile
                 delay_mean = 200 # this is the rough round trip delay estimate
                 delay_std = 0
                 _, _ = measure_delay_loop(baseline_mean=baseline_mean, baseline_sd = baseline_sd, ems_serial=ems_serial, contact_serial=contact_serial) 
             elif counter_balanced_string == 'n' or counter_balanced_string == 'a':
                 delay_mean, delay_std = measure_delay_loop(baseline_mean=baseline_mean, baseline_sd = baseline_sd, ems_serial=ems_serial, contact_serial=contact_serial) 
+                print("Using first channel.")
+                ems_constants_may.channel = 0
             else:
                 raise ValueError("counter balanced string not recognized.")
 
