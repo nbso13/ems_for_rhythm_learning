@@ -666,7 +666,7 @@ if __name__ == '__main__':
     conditions = []
 
     for session_number in range(len(vars_dicts)):
-
+            
         header_dict = vars_dicts[session_number]["header_dict"]
         var_lists = vars_dicts[session_number]["vars_by_rhythm_and_bpm"]
 
