@@ -1,4 +1,5 @@
 
+from cmath import exp
 import warnings
 import pickle
 import ems_constants
@@ -474,7 +475,119 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
                 reading_list[ind] = 0
     return reading_list
 
+class PerformanceScores:
+    def __init__(self, processed_contact_trace, processed_contact_onset_times, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace):
+        self.processed_contact_trace = processed_contact_trace
+        self.processed_contact_onset_times = processed_contact_onset_times
+        self.common_time_vals = common_time_vals
+        self.stim_onset_times = stim_onset_times
+        self.audio_onset_times = audio_onset_times
+        self.stim_trace = stim_trace
+        self.audio_trace = audio_trace
 
+        self.emd = self.score_emd()
+        self.mad = self.score_mad()
+        self.vad = self.score_vad()
+
+    def score_emd():
+
+    def score_mad():
+
+    def score_vad():
+
+    def show_scores():
+
+
+class TraceData:
+    def __init__(self, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
+        self.contact_trace = contact_trace
+        self.x_times_contact = x_times_contact
+        self.x_times_audio = x_times_audio
+        self.x_times_stim = x_times_stim
+        self.audio_trace = audio_trace
+        self.stim_trace = stim_trace
+        self.processed_contact_trace = processed_contact_trace
+        self.common_time_vals = common_time_vals
+        self.processed_contact_onset_times = processed_contact_onset_times
+    
+    
+    def interpolate_contact_trace(self):
+    # interpolate raw contact trace
+        self.interp_contact_trace = 
+        self.common_time_vals = 
+
+    def filter_raw_contact_trace(self):
+    # filter raw contact trace
+        self.interp_contact_trace = 
+        self.common_time_vals = 
+
+    def trace_surpress(self):
+        self.processed_contact_trace = 
+        self.processed_contact_onset_times = 
+
+    def create_stim_audio_traces(self):
+    #  create traces for stim and audio
+        self.stim_trace = 
+        self.audio_trace = 
+    
+    
+    def find_trial_section_and_repeat_times(self, header_info):
+        # the times including the first and last of each repeat beginning and end
+        self.repeat_times = 
+
+        # trace objects for each repeat
+        self.repeat_trace_data_list =
+        # performance objects for every repeat
+        self.repeat_performance_data_list =
+        # list with the same length containing the associated phase name for each repeat ('preaudio' 'exp' 'postaudio', 'test')
+        self.repeat_associated_phase_list = 
+        # the times including first and last of each phase
+        self.phase_times = 
+        # trace objects for each phase
+        self.phase_trace_data_list =
+        # performance objects for each phase
+        self.phase_performance_data_list =
+        # list with same length containing names for each phase ('preaudio', 'exp', 'postaudio', 'test')
+        self.phase_name_list = 
+
+    def check_demarcation(self,header_dict, demarcation_times, legend_labels, title_str):
+        ## check delays markers by plotting
+        self.show_trace(header_dict['samp_period_ms'], legend_labels, title_str)
+
+        ax = plt.gca()
+        ax.scatter(demarcation_times, np.ones_like(demarcation_times), s=20)
+
+    def score_trace(self):
+        self.performance = PerformanceScores(processed_contact_trace=self.processed_contact_trace, \
+            processed_contact_onset_times= self.processed_contact_onset_times, \
+            common_time_vals=self.common_time_vals, \
+            stim_onset_times=self.x_times_stim, \
+            audio_onset_times=self.x_times_audio,\
+            stim_trace = self.stim_trace, \
+            audio_trace= self.audio_trace)
+
+    def show_trace(self):
+    
+
+
+        
+    
+class RhythmPerformance:
+    def __init__(self, participant, experiment_day, rhythm_task, trace_data, performance_data):
+    # participant should be number (pID), day should be 1, 2, or 3, rhythm task can be 'train', 'recall', or 'naive'
+        rhythm_tasks = ['train', 'recall', 'naive']
+        assert experiment_day in [1, 2, 3]
+        assert type(participant) == int
+        assert rhythm_task in rhythm_tasks
+
+        self.participant = participant
+        self.experiment_day = experiment_day
+        self.rhythm_task = rhythm_task
+        self.trace_data = trace_data
+        self.performance_data = performance_data
+
+    def display_performance(self):
+        # plot
 
 
 # def cluster_intervals(num_intervals, gt_intervals)
@@ -482,6 +595,18 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
 # _____________________### MAIN ###____________________
 
 if __name__ == '__main__':
+
+
+    # preprocessing sudocode -
+    # 1. Load csvs of data
+    # 2. make a big pandas dataframe. 
+    # 3. populate by experiment day (1, 2, 3) and by rhythm task 
+    # (easy_train, easy_recall, easy_naive, medium_train, ..., difficult_naive) then by participant (1, 2,..., 12), 
+    # then have fields for [whole_trace], [separate_trials], [audio_played_reps_by_trial], [metronome_test_reps_by_trial],
+    # [all_metronome_reps]
+    # . have a field for condition. Make it easy to look at 'easy day 1'
+    # 4. detrend traces if possible
+    # 5. design a filter
 
     plt.style.use('ggplot')
 

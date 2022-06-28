@@ -474,6 +474,7 @@ def plot_contact_trace_and_rhythm_and_last_milliseconds(reading_list, contact_x_
     contact_x_array = np.array(contact_x_values)
     reading_array = np.array(reading_list)
     fig, axes = plt.subplots(3,1)
+    plt.gcf().set_size_inches(13,7)
     axes[0].plot(contact_x_values, reading_list)
     axes[0].set_title(input_title)
     axes[0].plot(x_array, stim_trace*np.max(reading_list))
@@ -1613,9 +1614,8 @@ if __name__ == '__main__':
 
     worksheet = workbook.add_worksheet("open_ended_questions") 
     open_ended_question = "RECORD WITH IPHONE: In a few sentences, how would you describe your experience today in learning these rhythms with the training system? What were your impressions? \n How did the training system feel? If applicable, how did it compare to earlier days in the experiment?"
-    open_ended_answer = input(open_ended_question)
+    print(open_ended_question)
     worksheet.write(1, 1, open_ended_question)
-    worksheet.write(1, 1, open_ended_answer)
         
         
     toc = time.time()
