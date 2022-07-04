@@ -107,7 +107,7 @@ contact_spike_time_width = 2 # ms
 double_stroke_rhythm = "1010010100101010"
 interval_tolerance = 100 #ms
 delay_reduction = 120 # ms is there some measurement of sensor to computer delay??
-port_contact = '/dev/cu.usbmodem11301'
+port_contact = '/dev/cu.usbmodem1301'
 port_ems = '/dev/tty.usbserial-18DNB483'
 
 qualitative_question_set = ["How would you rate your performance, from 1 (very inaccurate) to 7 (very accurate), when the rhythm was played to you? \n (1) .... (7)", \

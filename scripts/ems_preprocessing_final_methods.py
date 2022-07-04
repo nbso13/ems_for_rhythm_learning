@@ -476,6 +476,7 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
     return reading_list
 
 class PerformanceScores:
+    # PerformanceScore objects have EMD MAD and VAD scores calculated from trace and onset times.
     def __init__(self, processed_contact_trace, processed_contact_onset_times, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace):
         self.processed_contact_trace = processed_contact_trace
         self.processed_contact_onset_times = processed_contact_onset_times
@@ -499,6 +500,7 @@ class PerformanceScores:
 
 
 class TraceData:
+    # tracedata objects
     def __init__(self, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
         self.contact_trace = contact_trace
         self.x_times_contact = x_times_contact
@@ -531,10 +533,9 @@ class TraceData:
         self.audio_trace = 
     
     
-    def find_trial_section_and_repeat_times(self, header_info):
+    def find_and_score_trial_section_and_repeat_times(self, header_info):
         # the times including the first and last of each repeat beginning and end
         self.repeat_times = 
-
         # trace objects for each repeat
         self.repeat_trace_data_list =
         # performance objects for every repeat
@@ -553,7 +554,6 @@ class TraceData:
     def check_demarcation(self,header_dict, demarcation_times, legend_labels, title_str):
         ## check delays markers by plotting
         self.show_trace(header_dict['samp_period_ms'], legend_labels, title_str)
-
         ax = plt.gca()
         ax.scatter(demarcation_times, np.ones_like(demarcation_times), s=20)
 
@@ -566,29 +566,45 @@ class TraceData:
             stim_trace = self.stim_trace, \
             audio_trace= self.audio_trace)
 
+    def preprocess_and_score_trace(self, header_info):
+
+            # interpolate contact trace
+
+            self.interpolate_contact_trace()
+
+            # filter contact trace
+
+            self.filter_raw_contact_trace()
+
+            # surpress trace
+
+            self.trace_surpress()
+
+            # create stim and audio traces
+
+            self.create_stim_audio_traces()
+
+            # find demarcating time stamps
+            
+            self.find_and_score_trial_section_and_repeat_times(header_info)
+
+            # score every
+
+
     def show_trace(self):
-    
 
-
-        
     
-class RhythmPerformance:
-    def __init__(self, participant, experiment_day, rhythm_task, trace_data, performance_data):
+class ParticipantPerformance:
+    # performance
+    def __init__(self, participant, scored_traces_dict, task_order, header_info):
     # participant should be number (pID), day should be 1, 2, or 3, rhythm task can be 'train', 'recall', or 'naive'
-        rhythm_tasks = ['train', 'recall', 'naive']
-        assert experiment_day in [1, 2, 3]
-        assert type(participant) == int
-        assert rhythm_task in rhythm_tasks
-
         self.participant = participant
-        self.experiment_day = experiment_day
-        self.rhythm_task = rhythm_task
-        self.trace_data = trace_data
-        self.performance_data = performance_data
-
-    def display_performance(self):
+        self.scored_traces = scored_traces_dict
+        self.task_order = task_order
+    
+        def display_performance(self):
         # plot
-
+    
 
 # def cluster_intervals(num_intervals, gt_intervals)
 # _____________________________________________________
@@ -621,6 +637,52 @@ if __name__ == '__main__':
     file_stems = ['2022_04_13_13_37_03_pp11']
     
     # '2022_04_11_15_34_19_pp11', '2022_04_11_15_56_10_pp11']
+
+
+    ### load data ###
+    for ppt in range(len(ppt_data_files_list)):
+
+        print("Loading data...")
+        t1 = time.time()
+        header_dicts = load_headers(file_stems)
+        wbs = load_data(file_stems)
+        end = time.time() - t1
+        print("Data loaded. time taken: " + str(end))
+
+
+        session_traces = []
+
+        for session_number in range(len(wbs)):
+            header_dict = header_dicts[session_number]
+            wb = wbs[session_number]
+
+            # pull important direct data from session
+            rhythm_traces = []
+
+            # for each rhythm in session
+            for rhythm_index in range(len(rhythm_strings)): # for each string
+                rhythm_substr = rhythm_strings[rhythm_index]
+                count = count + 1
+
+                # create TraceData from trace
+
+                trace_data_object = TraceData(contact_trace=rhythm_contact_trace, x_times_contact=rhythm_x_times_contact, \
+                    x_times_audio=rhythm_x_times_audio, x_times_stim=rhythm_x_times_stim)
+
+                trace_data_object.preprocess_and_score_trace(header_info)
+
+        # create session dict
+
+        performance_dict = {
+
+        }
+
+        ppt_performance = ParticipantPerformance(pp_ID, performance_dict, task_order, header_dict)
+        ppt_performance_list.append(participant_performance)
+
+
+
+
 
 
     ### load data ###
