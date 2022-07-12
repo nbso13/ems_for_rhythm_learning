@@ -1,3 +1,10 @@
+## TO REVIEW:
+# in accumulate_intervals - should the "user performance" interval be time from previous note (ground truth)?
+# in pull_scaled_asynchronies - implement plot mode where you can see
+    # which user intervals are taken and compared to which ground intervals 
+    # and then the histogram of asynchronies
+# in PerformanceScores - should be able to show performance.
+# write a function that compares between a list of PerformanceScores
 
 from cmath import exp
 import warnings
@@ -261,8 +268,7 @@ def count_intervals(rhyth_string):
         return intervs, unique_intervals, num_unique
     intervs[0] += zero_counter # add trailing zeros to first measured interval
     unique_intervals = list(set(intervs))
-    num_unique = len(unique_intervals)
-    return intervs, unique_intervals, num_unique
+    return intervs, unique_intervals, 
     
 
 def emd_test(title, times_a, times_b, mini, maxi, samp_period):
@@ -348,6 +354,34 @@ def teaserfigure():
     axes[i+1].set_position([l*1.05, b, w, h])
 
 
+def pull_scaled_asynchronies(unique_intervals_ms, audio_onset_times, contact_onset_times, plot_flag):
+    # get unique intervals in this rhythm
+    # make a 2d matrix: first dim interval. second, user performance instance.
+    unscaled_asynchronies_matrix = [[] for i in range(len(unique_intervals_ms))]
+    scaled_asynchronies_list = []
+    # get the audio and the contact times 
+    # get the ground truth intervals and the user produced intervals 
+    ground_truth_intervals, user_intervals = accumulate_intervals(audio_onset_times, contact_onset_times)
+    for j in range(len(ground_truth_intervals)): # for every ground truth interval
+        # get the closest unique interval (classify)
+        distances_to_known_intervals = np.abs(unique_intervals_ms - ground_truth_intervals[j])
+        index = np.argmin(distances_to_known_intervals)
+        # if difference between unique interval in the rhythm and the ground truth interval is more than 10% of ground truth interval that's weird. throw a warning
+        if ((unique_intervals_ms[index] - ground_truth_intervals[j])/unique_intervals_ms[index]) > 0.1:
+            warnings.warn("difference between measured ground truth interval and known unique interval is more than 10%??")
+
+        # calculate scaled (normalized) asnychrony as a signed fraction of the ground truth interval. If -0.1, user was 10% too soon.
+        else:
+            unscaled_asynchrony = (user_intervals[j] - ground_truth_intervals[j])
+            scaled_asynchrony = unscaled_asynchrony/ground_truth_intervals[j]
+            scaled_asynchronies_list.append(scaled_asynchrony) # append to scaled list
+            unscaled_asynchronies_matrix[index].append(unscaled_asynchrony)
+
+    if plot_flag:
+        plot = True
+        # show diagram with asynchronies and histogram
+    return scaled_asynchronies_list, unscaled_asynchronies_matrix, unique_intervals_ms
+
 
 def emd_tests():
     mini = 0
@@ -378,17 +412,17 @@ def emd_tests():
     return 
 
 
-def accumulate_intervals(phase_audio_onsets, surpressed_contact_onset_times):
+def accumulate_intervals(audio_onset_times, contact_onset_times): ## NEED TO REVIEW - 
     ground_truth_intervals = []
     user_intervals = []
     user_error = []
-    for j in range(len(phase_audio_onsets)-1):
+    for j in range(len(audio_onset_times)-1):
         # get the interval between them
-        gt_interval = phase_audio_onsets[j+1] - phase_audio_onsets[j]
+        gt_interval = audio_onset_times[j+1] - audio_onset_times[j]
         # get the index of the nearest response pulse to the j+1 audio
-        arg_min = np.argmin(np.abs(np.subtract(surpressed_contact_onset_times, phase_audio_onsets[j+1]))) # throws out the first one...
+        arg_min = np.argmin(np.abs(np.subtract(contact_onset_times, audio_onset_times[j+1]))) # throws out the first one...
         # get the user interval
-        user_interval = surpressed_contact_onset_times[arg_min] - phase_audio_onsets[j]#response time user - previous audio pulse
+        user_interval = contact_onset_times[arg_min] - audio_onset_times[j]#response time user - previous audio pulse
         if user_interval <= 0:
             user_interval = np.nan
             # raise ValueError("user interval less than 0")
@@ -477,7 +511,8 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
 
 class PerformanceScores:
     # PerformanceScore objects have EMD MAD and VAD scores calculated from trace and onset times.
-    def __init__(self, processed_contact_trace, processed_contact_onset_times, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace):
+    def __init__(self, rhythm, bpm, processed_contact_trace, processed_contact_onset_times, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace):
+        self.rhythm = rhythm
         self.processed_contact_trace = processed_contact_trace
         self.processed_contact_onset_times = processed_contact_onset_times
         self.common_time_vals = common_time_vals
@@ -486,23 +521,47 @@ class PerformanceScores:
         self.stim_trace = stim_trace
         self.audio_trace = audio_trace
 
-        self.emd = self.score_emd()
-        self.mad = self.score_mad()
-        self.vad = self.score_vad()
+        # get unique intervals from rhythm
+        _, unique_intervals  = count_intervals(rhythm)
+        ms_per_eighthnote = 30000/bpm
+        unique_intervals_ms = [i*ms_per_eighthnote for i in unique_intervals]
 
-    def score_emd():
+        self.scaled_asynchronies_list, \
+            self.unscaled_asynchronies_matrix, \
+            self.unique_intervals_ms = pull_scaled_asynchronies(unique_intervals_ms, \
+                self.audio_onset_times, self.processed_contact_onset_times)
 
-    def score_mad():
+        self.emd = self.score_emd(self)
 
-    def score_vad():
+        self.mad, self.vad = self.score_mad_vad(self)
+
+    def score_emd(self):
+        times_a = self.processed_contact_onset_times
+        times_b = self.audio_onset_times
+        trace_a = self.processed_contact_trace
+        trace_b = self.audio_trace
+        emd = earth_movers_distance(times_a, times_b, trace_a, trace_b)
+        return emd
+
+
+    def score_mad_vad(self):
+        mad = np.mean(np.abs(self.scaled_asynchronies_list))
+        vad = np.std(self.scaled_asynchronies_list)
+        flat_unscaled_intervals_list = [j for sub in self.unscaled_asynchronies_matrix for j in sub]
+        mean_unsigned_unscaled_asynchrony = np.mean(flat_unscaled_intervals_list)# this shows if there's a constant offset
+        return mad, vad, mean_unsigned_unscaled_asynchrony
 
     def show_scores():
+        # implement plot that shows contact_trace, 
+        # contact_onset_times, audio_onset_times, asynchrony histogram, EMD, MAD and VAD
 
 
 class TraceData:
     # tracedata objects
     def __init__(self, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
-        self.contact_trace = contact_trace
+        self.contact_trace = contact_trace # this is always used!
+        self.contact_trace_interped = 0
+        self.contact_trace_filtered = 0
         self.x_times_contact = x_times_contact
         self.x_times_audio = x_times_audio
         self.x_times_stim = x_times_stim
@@ -515,17 +574,36 @@ class TraceData:
     
     def interpolate_contact_trace(self):
     # interpolate raw contact trace
-        self.interp_contact_trace = 
-        self.common_time_vals = 
+        if not(self.contact_trace_interped):
+            input_contact_trace  = self.contact_trace
+            self.common_time_vals, \
+                self.contact_trace =  interpolate(input_contact_trace, self.x_times_contact, ems_constants.analysis_sample_period)
+        else:
+            warnings.warn("contact trace already interpolated.")
+        return
 
     def filter_raw_contact_trace(self):
     # filter raw contact trace
-        self.interp_contact_trace = 
-        self.common_time_vals = 
+        if not(self.contact_trace_interped):
+            warnings.warn("must interpolate before filtering contact trace.")
+        elif not(self.contact_trace_filtered):
+            input_contact_trace  = self.contact_trace
+            self.contact_trace = input_contact_trace
+            warnings.warn("FILTER NOT IMPLEMENTED")
+        else:
+            warnings.warn("contact trace already filtered.")
+        return
+
 
     def trace_surpress(self):
-        self.processed_contact_trace = 
-        self.processed_contact_onset_times = 
+        if not(self.contact_trace_filtered):
+            warnings.warn("must filter before surpressing contact trace.")
+        elif not(self.contact_trace_surpressed):
+            input_contact_trace  = self.contact_trace
+            self.contact_trace = surpress(input_contact_trace)
+        else:
+            warnings.warn("contact trace already surpressed.")
+        return
 
     def create_stim_audio_traces(self):
     #  create traces for stim and audio
@@ -597,10 +675,15 @@ class TraceData:
 class ParticipantPerformance:
     # performance
     def __init__(self, participant, scored_traces_dict, task_order, header_info):
-    # participant should be number (pID), day should be 1, 2, or 3, rhythm task can be 'train', 'recall', or 'naive'
+    # participant should be number (pID), rhythm task can be 'train', 'recall', or 'naive'
         self.participant = participant
+
         self.scored_traces = scored_traces_dict
-        self.task_order = task_order
+        # a dictionary of lists of scored traces. 
+        # first field: traces category: 'metronome_tests' 'complete_test_traces' 'experimental_traces' 'audio_traces'
+        # ["metronome_tests"]["day_1"]["medium"]["naive"] gives you a list (four long) of scored traces from metronome tests on day 1 for the medium_naive presentation.
+
+        self.task_order = task_order # i.e., ['actuating', 'nothing', 'tactile']
     
         def display_performance(self):
         # plot
@@ -654,6 +737,7 @@ if __name__ == '__main__':
 
         for session_number in range(len(wbs)):
             header_dict = header_dicts[session_number]
+            bpm = header_dict['bpm']
             wb = wbs[session_number]
 
             # pull important direct data from session
