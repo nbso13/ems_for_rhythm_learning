@@ -7,6 +7,7 @@
 # write a function that compares between a list of PerformanceScores
 
 from cmath import exp
+from email import header
 import warnings
 import pickle
 import ems_constants
@@ -558,10 +559,14 @@ class PerformanceScores:
 
 class TraceData:
     # tracedata objects
-    def __init__(self, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
+    def __init__(self, header_dict, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
         self.contact_trace = contact_trace # this is always used!
+        self.header_dict = header_dict
         self.contact_trace_interped = 0
         self.contact_trace_filtered = 0
+        self.contact_trace_surpressed = 0
+        self.stim_audio_traces_created = 0
+        self.contact_onsets_created = 0
         self.x_times_contact = x_times_contact
         self.x_times_audio = x_times_audio
         self.x_times_stim = x_times_stim
@@ -601,17 +606,43 @@ class TraceData:
         elif not(self.contact_trace_surpressed):
             input_contact_trace  = self.contact_trace
             self.contact_trace = surpress(input_contact_trace)
+            self.contact_trace_surpressed = 1
         else:
             warnings.warn("contact trace already surpressed.")
         return
 
     def create_stim_audio_traces(self):
     #  create traces for stim and audio
-        self.stim_trace = 
-        self.audio_trace = 
+        if not(self.contact_trace_interped):
+            warnings.warn("must interpolate before creating audio and stim traces.")
+        if self.stim_audio_traces_created:
+            warnings.warn("stim and audio traces already created. Not recreating.")
+        else: 
+            audio_hold = 30000/self.header_dict['bpm']
+            self.stim_trace = spike_times_to_traces(self.x_times_stim, self.header_dict['actual_stim_length'], self.common_time_vals, ems_constants.analysis_sample_period)
+            self.audio_trace = spike_times_to_traces(self.x_times_audio, audio_hold, self.common_time_vals, ems_constants.analysis_sample_period)
+            self.stim_audio_traces_created = 1
+        return
+
+    def determine_contact_onset_times(self):
+        if not(self.contact_trace_surpressed):
+            warnings.warn("must trace surpress before creating contact onset time vector.")
+        if self.contact_onsets_created:
+            warnings.warn("contact onsets already created. Not recreating.")
+        else: 
+            first_audio = self.x_times_audio[0]
+            last_audio = self.x_times_audio[-1]
+                    
+            # determine when each contact/hit began
+            surpressed_contact_onset_times_not_chopped = process_contact_trace_to_hit_times(self.contact_trace, self.common_time_vals, ems_constants.baseline_subtractor, ems_constants.surpression_window)
+            # take off onset times that are before or after stim plus or minus 150 ms
+            surpressed_contact_onset_times = np.array([time for time in surpressed_contact_onset_times_not_chopped if (time > first_audio-ems_constants.chopping_buffer and time < last_audio+ ems_constants.chopping_buffer)])
+            # get the plottable trace for that 
+            surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, self.common_time_vals, ems_constants.analysis_sample_period)
+            self.surpressed_contact_trace = surpressed_contact_trace
+        return
     
-    
-    def find_and_score_trial_section_and_repeat_times(self, header_info):
+    def find_and_score_trial_section_and_repeat_times(self):
         # the times including the first and last of each repeat beginning and end
         self.repeat_times = 
         # trace objects for each repeat
