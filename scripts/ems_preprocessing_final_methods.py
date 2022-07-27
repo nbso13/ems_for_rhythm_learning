@@ -559,7 +559,8 @@ class PerformanceScores:
 
 class TraceData:
     # tracedata objects
-    def __init__(self, header_dict, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
+    # rhythm_index is the index of the rhythm in header dict, i.e., header_dict["rhythm_strings_names"][rhythm_index] gives this name.
+    def __init__(self, header_dict, rhythm_index, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
         self.contact_trace = contact_trace # this is always used!
         self.header_dict = header_dict
         self.contact_trace_interped = 0
@@ -567,6 +568,7 @@ class TraceData:
         self.contact_trace_surpressed = 0
         self.stim_audio_traces_created = 0
         self.contact_onsets_created = 0
+        self.trials_scored = 0
         self.x_times_contact = x_times_contact
         self.x_times_audio = x_times_audio
         self.x_times_stim = x_times_stim
@@ -575,6 +577,7 @@ class TraceData:
         self.processed_contact_trace = processed_contact_trace
         self.common_time_vals = common_time_vals
         self.processed_contact_onset_times = processed_contact_onset_times
+        self.rhythm_index = rhythm_index
     
     
     def interpolate_contact_trace(self):
@@ -639,30 +642,38 @@ class TraceData:
             surpressed_contact_onset_times = np.array([time for time in surpressed_contact_onset_times_not_chopped if (time > first_audio-ems_constants.chopping_buffer and time < last_audio+ ems_constants.chopping_buffer)])
             # get the plottable trace for that 
             surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, self.common_time_vals, ems_constants.analysis_sample_period)
-            self.surpressed_contact_trace = surpressed_contact_trace
+            self.onset_times_trace = surpressed_contact_trace
+            self.contact_onset_times = surpressed_contact_onset_times
+            self.contact_onsets_created = 1
         return
     
     def find_and_score_trial_section_and_repeat_times(self):
-        # the times including the first and last of each repeat beginning and end
-        self.repeat_times = 
-        # trace objects for each repeat
-        self.repeat_trace_data_list =
-        # performance objects for every repeat
-        self.repeat_performance_data_list =
-        # list with the same length containing the associated phase name for each repeat ('preaudio' 'exp' 'postaudio', 'test')
-        self.repeat_associated_phase_list = 
-        # the times including first and last of each phase
-        self.phase_times = 
-        # trace objects for each phase
-        self.phase_trace_data_list =
-        # performance objects for each phase
-        self.phase_performance_data_list =
-        # list with same length containing names for each phase ('preaudio', 'exp', 'postaudio', 'test')
-        self.phase_name_list = 
+        if not(self.contact_onsets_created):
+            warnings.warn("must create contact onset times first.")
+        if self.trials_scored:
+            warnings.warn("Trials already scored.")
+        else: 
+            # the times including the first and last of each repeat beginning and end
+            self.repeat_times = pull_repeat_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"], self.header_dict["phase_flags_list"])
+            # trace objects for each repeat
+            self.repeat_trace_data_list =
+            # performance objects for every repeat
+            self.repeat_performance_data_list =
+            # list with the same length containing the associated phase name for each repeat ('preaudio' 'exp' 'postaudio', 'test')
+            self.repeat_associated_phase_list = 
+            # the times including first and last of each phase
+            self.phase_times = 
+            # trace objects for each phase
+            self.phase_trace_data_list =
+            # performance objects for each phase
+            self.phase_performance_data_list =
+            # list with same length containing names for each phase ('preaudio', 'exp', 'postaudio', 'test')
+            self.phase_name_list = 
+            self.trials_scored = 1
 
-    def check_demarcation(self,header_dict, demarcation_times, legend_labels, title_str):
+    def check_demarcation(self, demarcation_times, legend_labels, title_str):
         ## check delays markers by plotting
-        self.show_trace(header_dict['samp_period_ms'], legend_labels, title_str)
+        self.show_trace(self.header_dict['samp_period_ms'], legend_labels, title_str)
         ax = plt.gca()
         ax.scatter(demarcation_times, np.ones_like(demarcation_times), s=20)
 
