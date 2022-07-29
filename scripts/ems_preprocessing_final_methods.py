@@ -31,6 +31,21 @@ from ems_test_analysis import plot_each_block
 from ems_test_analysis import determine_delays_list
 from ems_test_analysis import plot_test_blocks
 
+
+def pull_phase_times(first_audio, rhythm, bpm, block_repeats_list):
+
+    eighthnote_length = 30000/bpm
+    rhythm_time = len(rhythm)*eighthnote_length
+    phase_times = []
+    time_var = first_audio
+    for i in range(len(block_repeats_list)):
+        phase_times.append(time_var)
+        phase_length_repeats = block_repeats_list[i]
+        phase_length_ms = phase_length_repeats * rhythm_time
+        time_var = time_var + phase_length_ms
+    phase_times.append(time_var) # book end
+    return phase_times
+
 def sine_generator(fs, sinefreq, duration):
     T = duration
     nsamples = fs * T
@@ -653,16 +668,21 @@ class TraceData:
         if self.trials_scored:
             warnings.warn("Trials already scored.")
         else: 
-            # the times including the first and last of each repeat beginning and end
-            self.repeat_times = pull_repeat_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"], self.header_dict["phase_flags_list"])
-            # trace objects for each repeat
-            self.repeat_trace_data_list =
-            # performance objects for every repeat
-            self.repeat_performance_data_list =
-            # list with the same length containing the associated phase name for each repeat ('preaudio' 'exp' 'postaudio', 'test')
-            self.repeat_associated_phase_list = 
+            # # the times including the first and last of each repeat beginning and end
+            # self.repeat_times = pull_repeat_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"], self.header_dict["phase_flags_list"])
+            # # trace objects for each repeat
+            # num_repeats = len(self.repeat_times) - 1
+            # for i in range(num_repeats):
+            #     chop_trace()
+            # self.repeat_trace_data_list =
+            # # performance objects for every repeat
+            # self.repeat_performance_data_list =
+            # # list with the same length containing the associated phase name for each repeat ('preaudio' 'exp' 'postaudio', 'test')
+            # self.repeat_associated_phase_list = 
+            
             # the times including first and last of each phase
-            self.phase_times = 
+            self.phase_times =  pull_phase_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"])
+            for i in range(len(self.phase_times) - 1):
             # trace objects for each phase
             self.phase_trace_data_list =
             # performance objects for each phase
