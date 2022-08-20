@@ -176,11 +176,13 @@ runtime_parameters = {
     "all_str" : all_str,
     "almost_all" : almost_all,
     "rhythm_strings" : rhythm_strings,
+    "naive_rhythm_strings" : naive_rhythm_strings,
     "random_generated_one" : random_generated_one,
     "random_generated_two" : random_generated_two,
     # clave_substr, five_to_four_substr, three_to_four_substr,  \
     #     syncopated_substr, bass_drum_pattern, flip_the_beat
     "rhythm_strings_names" : rhythm_strings_names,
+    'naive_rhythm_strings_names' : naive_rhythm_strings_names,
     # , "clave", "five_to_four", "three_to_four", \
     #     "syncopated_substr", "bass_drum_pattern", "flip_the_beat"
     "update_period_ms" : update_period_ms,

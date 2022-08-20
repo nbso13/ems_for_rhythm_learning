@@ -8,6 +8,7 @@
 
 from cmath import exp
 from email import header
+from tracemalloc import start
 import warnings
 import pickle
 import ems_constants
@@ -180,17 +181,17 @@ def compile_unique_interval_list(intervals, tolerance):
             indices.append(len(unique_interval_list) - 1)
     return unique_interval_list, indices
 
-def count_time_readings(worksheet):
+def count_time_readings(worksheet, column):
 ## how many time readings are there?
     counter = 0
     val = 1.0
     while type(val) is float or type(val) is int: #while we're reading floats and not nans
-        val = worksheet.cell(row=counter + worksheet_data_begin_indices[0], column=1).value
+        val = worksheet.cell(row=counter + worksheet_data_begin_indices[0], column=column).value
         counter = counter+1
     time_readings_length = counter-2
     return time_readings_length
 
-def read_array_values(time_readings_length, variables_number, worksheet):
+def read_array_values(time_readings_lengths, variables_number, worksheet, worksheet_data_begin_indices):
     arr = np.empty([time_readings_length, variables_number]) 
     arr[:] = np.NaN
     for r in range(time_readings_length):
@@ -202,10 +203,10 @@ def read_array_values(time_readings_length, variables_number, worksheet):
     stim_onset_times = stim_onsets_temp[~np.isnan(stim_onsets_temp)] # take care of nans that make array work
     audio_onsets_temp = arr[:, 3]
     audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
-    return contact_x_values, reading_list, stim_onset_times, audio_onset_times
+    return contact_x_values, reading_list, audio_onset_times, stim_onset_times
 
         
-def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values):
+def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
     loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
@@ -215,7 +216,9 @@ def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, aud
     trace_selector_bool = np.logical_and((x_values >= loop_begin), (x_values <= loop_end)) # which indices in traces are during this loop?
     contact_trace_selected = surpressed_contact_trace[trace_selector_bool] # pick those data points from suprpressed contact trace
     audio_trace_selected = audio_trace[trace_selector_bool] # pick those data points from audio trace
-    return spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, trace_selector_bool
+    x_times_selected = x_values[trace_selector_bool]
+    return spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, x_times_selected, trace_selector_bool
+
 
 def load_headers(file_stems):
     header_dicts = []
@@ -568,6 +571,7 @@ class PerformanceScores:
         return mad, vad, mean_unsigned_unscaled_asynchrony
 
     def show_scores():
+        raise ValueError("not implemented!")
         # implement plot that shows contact_trace, 
         # contact_onset_times, audio_onset_times, asynchrony histogram, EMD, MAD and VAD
 
@@ -575,7 +579,7 @@ class PerformanceScores:
 class TraceData:
     # tracedata objects
     # rhythm_index is the index of the rhythm in header dict, i.e., header_dict["rhythm_strings_names"][rhythm_index] gives this name.
-    def __init__(self, header_dict, rhythm_index, contact_trace, x_times_contact, x_times_audio, x_times_stim, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
+    def __init__(self, header_dict, rhythm_index, contact_trace, x_times_contact, x_times_audio, x_times_stim=None, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
         self.contact_trace = contact_trace # this is always used!
         self.header_dict = header_dict
         self.contact_trace_interped = 0
@@ -593,7 +597,6 @@ class TraceData:
         self.common_time_vals = common_time_vals
         self.processed_contact_onset_times = processed_contact_onset_times
         self.rhythm_index = rhythm_index
-    
     
     def interpolate_contact_trace(self):
     # interpolate raw contact trace
@@ -661,7 +664,16 @@ class TraceData:
             self.contact_onset_times = surpressed_contact_onset_times
             self.contact_onsets_created = 1
         return
-    
+
+    def chop_object_traces(self):
+        trace_data_list = []
+        for i in range(len(self.phase_times) - 1):
+            spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, x_times_selected, trace_selector_bool = chop_traces(i, self.contact_onset_times, self.contact_trace, self.x_times_audio, self.audio_trace, self.phase_times, self.common_time_vals, self.header_dict['bpm'])
+            trace_object = TraceData(self.header_dict, self.rhythm_index, contact_trace_selected, x_times_selected, x_times_selected,  audio_trace=audio_trace_selected, common_time_vals=x_times_selected, processed_contact_onset_times=spike_times_contact)
+            trace_object.score_trace()
+            trace_data_list.append(trace_object)
+
+
     def find_and_score_trial_section_and_repeat_times(self):
         if not(self.contact_onsets_created):
             warnings.warn("must create contact onset times first.")
@@ -681,14 +693,18 @@ class TraceData:
             # self.repeat_associated_phase_list = 
             
             # the times including first and last of each phase
-            self.phase_times =  pull_phase_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"])
-            for i in range(len(self.phase_times) - 1):
+            self.phase_times = pull_phase_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"])
             # trace objects for each phase
-            self.phase_trace_data_list =
+            self.phase_trace_data_list = self.chop_object_traces()
             # performance objects for each phase
-            self.phase_performance_data_list =
+            self.phase_performance_data_list = [item.performance() for item in self.phase_trace_data_list]
             # list with same length containing names for each phase ('preaudio', 'exp', 'postaudio', 'test')
-            self.phase_name_list = 
+
+            self.phase_name_list = []
+            phases = ['preaudio', 'exp', 'postaudio', 'test']
+            number_of_phase_repeats = len(self.phase_times)/4
+            for i in range(len(number_of_phase_repeats)):
+                self.phase_name_list = self.phase_name_list + phases
             self.trials_scored = 1
 
     def check_demarcation(self, demarcation_times, legend_labels, title_str):
@@ -706,7 +722,7 @@ class TraceData:
             stim_trace = self.stim_trace, \
             audio_trace= self.audio_trace)
 
-    def preprocess_and_score_trace(self, header_info):
+    def preprocess_and_score_trace(self):
 
             # interpolate contact trace
 
@@ -726,16 +742,14 @@ class TraceData:
 
             # find demarcating time stamps
             
-            self.find_and_score_trial_section_and_repeat_times(header_info)
+            self.find_and_score_trial_section_and_repeat_times()
 
             # score every
 
+    # def show_trace(self):
 
-    def show_trace(self):
-
-    
 class ParticipantPerformance:
-    # performance
+
     def __init__(self, participant, scored_traces_dict, task_order, header_info):
     # participant should be number (pID), rhythm task can be 'train', 'recall', or 'naive'
         self.participant = participant
@@ -747,8 +761,8 @@ class ParticipantPerformance:
 
         self.task_order = task_order # i.e., ['actuating', 'nothing', 'tactile']
     
-        def display_performance(self):
-        # plot
+        # def display_performance(self):
+        # # plot
     
 
 # def cluster_intervals(num_intervals, gt_intervals)
@@ -756,7 +770,6 @@ class ParticipantPerformance:
 # _____________________### MAIN ###____________________
 
 if __name__ == '__main__':
-
 
     # preprocessing sudocode -
     # 1. Load csvs of data
@@ -779,43 +792,109 @@ if __name__ == '__main__':
 
     # file_stems =  ['2022_03_24_16_43_14_pp4', '2022_03_25_15_46_43_pp4']
     # file_stems =  ['2022_03_27_13_56_12_pp5']
-    file_stems = ['2022_04_13_13_37_03_pp11']
+    file_stems = [['2022_07_27_17_28_39_pp24', '2022_07_28_16_42_16_pp24', '2022_07_29_16_54_49_pp24']]
     
     # '2022_04_11_15_34_19_pp11', '2022_04_11_15_56_10_pp11']
 
 
-    ### load data ###
-    for ppt in range(len(ppt_data_files_list)):
+    # loop through participants
+    for pp in range(len(file_stems)):
 
-        print("Loading data...")
+        print(f"Loading data for ppt{file_stems[pp][0][22:]}")
         t1 = time.time()
-        header_dicts = load_headers(file_stems)
-        wbs = load_data(file_stems)
+
+        # decide load mode - if pkl exists then load. otherwise make it.
+        if os.path.isfile(f"raw_pkls/raw_data_ppt_{file_stems[pp][0][22:]}.pkl"):
+            load_mode = 'pkl'
+        else:
+            print("no raw pkl exists, reading csv (may take longer).")
+            load_mode = 'csv' 
+
+        ### for each participant, load data ###
+        # grab end of file stem for ppt. number
+        if load_mode == 'csv':
+            header_dicts = load_headers(file_stems[pp])
+            wbs = load_data(file_stems[pp])
+            # check that files have the same participant numbers.
+            assert header_dicts[0]['pp number'] == header_dicts[1]['pp number'] and header_dicts[1]['pp number'] == header_dicts[2]['pp number'], "error: not all participant numbers match for these three files."
+            # get participant number
+            pp_number = header_dicts[0]["pp number"]
+            # pickle the raw data for better loading times next time:
+            print('pickling raw data.')
+            raw_vars_dict = {
+                "read_me" : "this dictionary contains the raw data for this participant.",
+                "workbooks" : wbs,
+                "header_dicts" : header_dicts
+            }
+            with open(f"raw_pkls/raw_data_ppt_{pp_number}.pkl", "wb") as pkl_handle:
+                pickle.dump(raw_vars_dict, pkl_handle)
+        elif load_mode == 'pkl':
+            pkl_file = f"raw_pkls/raw_data_ppt_{file_stems[pp][0][22:]}.pkl"
+            with open(pkl_file, "rb") as pkl_handle:
+                raw_vars_dict = pickle.load(pkl_handle)
+            header_dicts = raw_vars_dict['header_dicts']
+            wbs = raw_vars_dict['workbooks']
+        else:
+            raise ValueError("load mode not specified.")
+
+
         end = time.time() - t1
         print("Data loaded. time taken: " + str(end))
 
+        #
 
-        session_traces = []
+        
 
+        # loop through each session.
         for session_number in range(len(wbs)):
             header_dict = header_dicts[session_number]
-            bpm = header_dict['bpm']
             wb = wbs[session_number]
 
-            # pull important direct data from session
-            rhythm_traces = []
+            # pull experimental condition string
+            condition = header_dict["counter-balanced-string"]
+            # take the rhythm string names list, the first one ("easy_2" or something) and get the last char, turn into an int, that's the day.
+            day_number = int(header_dict["rhythm_strings_names"][0][-1])
+            assert day_number == (session_number+1), "day number and session number should match - file names should be ordered by session/day number in file_stems"
+
+            # xlsx parser does not do 0-start counting
+            worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices"]]
+            variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
+            
+            rhythm_strings = header_dict["rhythm_strings"]
+            rhythm_strings_names = header_dict["rhythm_strings_names"]
 
             # for each rhythm in session
             for rhythm_index in range(len(rhythm_strings)): # for each string
                 rhythm_substr = rhythm_strings[rhythm_index]
-                count = count + 1
+                rhythm_name = rhythm_strings_names[rhythm_index]
+                worksheet = wb[rhythm_name]
 
-                # create TraceData from trace
+                # how long / how many time readings are there?
+                time_readings_length_train = count_time_readings(worksheet, column = 1) # train col for times
+                time_readings_length_test = count_time_readings(worksheet, column = 5) # test col for times
+                time_readings_length_naive = count_time_readings(worksheet, column = 8) # naive col for times
+                starting_coordinates_train = [2,1]
+                starting_coordinates_test = [5,1]
+                starting_coordinates_naive = [8,1]
 
-                trace_data_object = TraceData(contact_trace=rhythm_contact_trace, x_times_contact=rhythm_x_times_contact, \
-                    x_times_audio=rhythm_x_times_audio, x_times_stim=rhythm_x_times_stim)
+                ## make the appropriate size data array and read in values.
 
-                trace_data_object.preprocess_and_score_trace(header_info)
+                # each variable is a dictionary with keys to 3 vectors: 'train' 'test' 'naive' presentations. train and test always have the same rhythm. train is always longer. test is shorter. naive is test length.
+                stim_times_flag = 1 # train has stim times
+                contact_x_values_train, reading_list_train,  audio_onset_times_train, stim_onset_times_train, = read_array_values(time_readings_length_train, worksheet, starting_coordinates_train, stim_times_flag)
+        
+                stim_times_flag = 0 # test has no stim times
+                contact_x_values_test, reading_list_test,  audio_onset_times_test = read_array_values(time_readings_length_test, worksheet, starting_coordinates_test, stim_times_flag)
+        
+                stim_times_flag = 0 # naive has no stim times
+                contact_x_values_naive, reading_list_naive,  audio_onset_times_naive = read_array_values(time_readings_length_naive, worksheet, starting_coordinates_naive, stim_times_flag)
+        
+
+                # create TraceData from each trace
+                trace_data_object = TraceData(contact_trace=reading_list, x_times_contact=contact_x_values, \
+                    x_times_audio=audio_onset_times, x_times_stim=stim_onset_times)
+
+                trace_data_object.preprocess_and_score_trace()
 
         # create session dict
 
@@ -831,161 +910,177 @@ if __name__ == '__main__':
 
 
 
-    ### load data ###
-    print("Loading data...")
-    t1 = time.time()
-    header_dicts = load_headers(file_stems)
-    wbs = load_data(file_stems)
-    end = time.time() - t1
-    print("Data loaded. time taken: " + str(end))
 
-    vector_of_improvement_matrices = []
 
-    for session_number in range(len(wbs)):
-        header_dict = header_dicts[session_number]
-        wb = wbs[session_number]
 
-        # pull experimental condition string
-        condition = ems_constants.counter_balanced_number_dict[header_dict["counter-balanced-number"]]
 
-        # xlsx parser does not do 0-start counting
-        worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices" ]]
-        variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
 
-        count = 0
+    # ### load data ###
+    # print("Loading data...")
+    # t1 = time.time()
+    # header_dicts = load_headers(file_stems)
+    # wbs = load_data(file_stems)
+    # end = time.time() - t1
+    # print("Data loaded. time taken: " + str(end))
 
-        all_emds = []
+    # vector_of_improvement_matrices = []
 
-        repeat_list = header_dict['phase_repeats_list']
+    # for session_number in range(len(wbs)):
+    #     header_dict = header_dicts[session_number]
+    #     wb = wbs[session_number]
+
+    #     # pull experimental condition string
+    #     condition = ems_constants.counter_balanced_number_dict[header_dict["counter-balanced-number"]]
+
+    #     # xlsx parser does not do 0-start counting
+    #     worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices" ]]
+    #     variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
+
+    #     worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}"]
+    #     time_readings_length = count_time_readings(worksheet)
+    #     ## make the appropriate size data array and read in values.
+    #     contact_x_values, reading_list, stim_onset_times, audio_onset_times = read_array_values(time_readings_length, variables_number, worksheet)
+    #     cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
+    #     cutoff_freq_high = ems_constants.cutoff_freq_high
+    #     contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, ems_constants.analysis_sample_period)
+    #     reading_list_interped = trace_surpress(reading_list_interped, contact_x_interped, ems_constants.memory_ms)
+
+
+
+    #     count = 0
+
+    #     all_emds = []
+
+    #     repeat_list = header_dict['phase_repeats_list']
         
-        processed_vars_by_rhythm = []
+    #     processed_vars_by_rhythm = []
 
-        y_axis_maxes = {
-            'mads': 0.5,
-            'vads': 0.2,
-            'emds': 400,
-            'twds' : 100
-        }
+    #     y_axis_maxes = {
+    #         'mads': 0.5,
+    #         'vads': 0.2,
+    #         'emds': 400,
+    #         'twds' : 100
+    #     }
 
-        y_axis_mins = {
-            'mads': 0,
-            'vads': 0,
-            'emds': 0,
-            'twds' : 0
-        }
+    #     y_axis_mins = {
+    #         'mads': 0,
+    #         'vads': 0,
+    #         'emds': 0,
+    #         'twds' : 0
+    #     }
 
-        # doing preprocessing FOR EACH RHYTHM separately.
+    #     # doing preprocessing FOR EACH RHYTHM separately.
 
-        rhythm_strings = header_dict['rhythm_strings']
-        for rhythm_index in range(len(rhythm_strings)): # for each string
-            rhythm_substr = rhythm_strings[rhythm_index]
-            count = count + 1
+    #     rhythm_strings = header_dict['rhythm_strings']
+    #     for rhythm_index in range(len(rhythm_strings)): # for each string
+    #         rhythm_substr = rhythm_strings[rhythm_index]
+    #         count = count + 1
 
-            list_of_WK_var_lists_by_bpm = []
+    #         list_of_WK_var_lists_by_bpm = []
 
-            processed_var_lists_by_bpm = []
-            processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
-                worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}"]
-                time_readings_length = count_time_readings(worksheet)
+    #         processed_var_lists_by_bpm = []
+    #         processed_vars_by_rhythm.append(processed_var_lists_by_bpm)
+    #             worksheet = wb[f"{header_dict['rhythm_strings_names'][rhythm_index]}"]
+    #             time_readings_length = count_time_readings(worksheet)
 
-                ## make the appropriate size data array and read in values.
-                contact_x_values, reading_list, stim_onset_times, audio_onset_times = read_array_values(time_readings_length, variables_number, worksheet)
-                cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
-                cutoff_freq_high = ems_constants.cutoff_freq_high
-                contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, ems_constants.analysis_sample_period)
-                reading_list_interped = trace_surpress(reading_list_interped, contact_x_interped, ems_constants.memory_ms)
-                # reading_list_filtered = butter_band_pass_filter(contact_x_interped, reading_list_interped, cutoff_freq_low, cutoff_freq_high, header_dict['samp_period_ms'], plot_flag=0)
+    #             ## make the appropriate size data array and read in values.
+    #             contact_x_values, reading_list, stim_onset_times, audio_onset_times = read_array_values(time_readings_length, variables_number, worksheet)
+    #             cutoff_freq_low = ems_constants.cutoff_freq_low # cutoff period Any component with a longer period is attenuated
+    #             cutoff_freq_high = ems_constants.cutoff_freq_high
+    #             contact_x_interped, reading_list_interped = interpolate(reading_list, contact_x_values, ems_constants.analysis_sample_period)
+    #             reading_list_interped = trace_surpress(reading_list_interped, contact_x_interped, ems_constants.memory_ms)
+    #             # reading_list_filtered = butter_band_pass_filter(contact_x_interped, reading_list_interped, cutoff_freq_low, cutoff_freq_high, header_dict['samp_period_ms'], plot_flag=0)
             
-                ## preprocessing
-                audio_hold = 30000/bpm 
-                x_vec = contact_x_interped
-                stim_trace = spike_times_to_traces(stim_onset_times, header_dict['actual_stim_length'], x_vec, ems_constants.analysis_sample_period)
-                audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, ems_constants.analysis_sample_period)
-                first_audio = audio_onset_times[0]
-                last_audio = audio_onset_times[-1]
+    #             ## preprocessing
+    #             audio_hold = 30000/bpm 
+    #             x_vec = contact_x_interped
+    #             stim_trace = spike_times_to_traces(stim_onset_times, header_dict['actual_stim_length'], x_vec, ems_constants.analysis_sample_period)
+    #             audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, ems_constants.analysis_sample_period)
+    #             first_audio = audio_onset_times[0]
+    #             last_audio = audio_onset_times[-1]
 
-                # get delays list 
-                delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict, first_audio)
+    #             # get delays list 
+    #             delays_list, len_rhythm_ms = determine_delays_list(rhythm_substr, bpm, header_dict, first_audio)
 
-                # EXAMINE DATA
+    #             # EXAMINE DATA
 
-                # interpolated
-                legend_labels = ['contact', 'stim', 'audio']
-                title_str = f"pp {file_stems[session_number][-3:-1]}, session number {session_number}, {header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
-                view_window_begin = 40000
-                view_window_end = -1
-                # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \
-                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
-                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+    #             # interpolated
+    #             legend_labels = ['contact', 'stim', 'audio']
+    #             title_str = f"pp {file_stems[session_number][-3:-1]}, session number {session_number}, {header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} interpolated"
+    #             view_window_begin = 40000
+    #             view_window_end = -1
+    #             # plot_contact_trace_and_rhythm(reading_list_interped[view_window_begin:view_window_end], \
+    #             #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+    #             #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
-                # filtered
-                # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} filtered"
-                # plot_contact_trace_and_rhythm(reading_list_filtered, x_vec, stim_trace, audio_trace, x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
+    #             # filtered
+    #             # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} filtered"
+    #             # plot_contact_trace_and_rhythm(reading_list_filtered, x_vec, stim_trace, audio_trace, x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
 
-                ## continue preprocessing
+    #             ## continue preprocessing
 
-                # determine when each contact/hit began
-                surpressed_contact_onset_times_not_chopped = process_contact_trace_to_hit_times(reading_list_interped, contact_x_interped, ems_constants.baseline_subtractor, ems_constants.surpression_window)
-                # take off onset times that are before or after stim plus or minus 150 ms
-                surpressed_contact_onset_times = np.array([time for time in surpressed_contact_onset_times_not_chopped if (time > first_audio-ems_constants.chopping_buffer and time < last_audio+ ems_constants.chopping_buffer)])
-                # get the plottable trace for that 
-                surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, contact_x_interped, ems_constants.analysis_sample_period)
+    #             # determine when each contact/hit began
+    #             surpressed_contact_onset_times_not_chopped = process_contact_trace_to_hit_times(reading_list_interped, contact_x_interped, ems_constants.baseline_subtractor, ems_constants.surpression_window)
+    #             # take off onset times that are before or after stim plus or minus 150 ms
+    #             surpressed_contact_onset_times = np.array([time for time in surpressed_contact_onset_times_not_chopped if (time > first_audio-ems_constants.chopping_buffer and time < last_audio+ ems_constants.chopping_buffer)])
+    #             # get the plottable trace for that 
+    #             surpressed_contact_trace = spike_times_to_traces(surpressed_contact_onset_times, ems_constants.contact_spike_time_width, contact_x_interped, ems_constants.analysis_sample_period)
 
-                surpressed_contact_trace, audio_trace = surpress(audio_trace, surpressed_contact_trace)
+    #             surpressed_contact_trace, audio_trace = surpress(audio_trace, surpressed_contact_trace)
 
-                repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
+    #             repeat_times = pull_repeat_times(first_audio, rhythm_substr, bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'])
 
-                # emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
-                #     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values, reading_list_interped, contact_x_interped)
+    #             # emds, twds, mads, vads = plot_each_block(rhythm_substr, header_dict['rhythm_strings_names'][rhythm_index], bpm, header_dict['phase_repeats_list'], header_dict['phase_flags_list'], delays_list, \
+    #             #     surpressed_contact_onset_times, audio_onset_times, surpressed_contact_trace, audio_trace, x_vec, reading_list, contact_x_values, reading_list_interped, contact_x_interped)
 
-                # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
+    #             # y_lims_list = plot_test_blocks(emds, mads, vads, twds, header_dict['rhythm_strings_names'][rhythm_index], rhythm_substr, bpm, ems_constants.phase_warning_strs)
 
-                #examine spiking
-                # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
-                # plot_contact_trace_and_rhythm(surpressed_contact_trace[view_window_begin:view_window_end], \
-                #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
-                #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
+    #             #examine spiking
+    #             # title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, {bpm} spikes"
+    #             # plot_contact_trace_and_rhythm(surpressed_contact_trace[view_window_begin:view_window_end], \
+    #             #     x_vec[view_window_begin:view_window_end], stim_trace[view_window_begin:view_window_end],  \
+    #             #         audio_trace[view_window_begin:view_window_end], x_vec[view_window_begin:view_window_end], header_dict['samp_period_ms'], legend_labels, title_str)
 
 
-                var_dict = {
-                    "contact_x_interped" : contact_x_interped, 
-                    "reading_list_interped" : reading_list_interped, 
-                    "surpressed_contact_trace" : surpressed_contact_trace, 
-                    "surpressed_contact_onset_times" : surpressed_contact_onset_times, 
-                    "stim_onset_times" : stim_onset_times, 
-                    "audio_onset_times" : audio_onset_times, 
-                    "stim_trace" : stim_trace, 
-                    "audio_trace" : audio_trace
-                }
-                processed_var_lists_by_bpm.append(var_dict)
+    #             var_dict = {
+    #                 "contact_x_interped" : contact_x_interped, 
+    #                 "reading_list_interped" : reading_list_interped, 
+    #                 "surpressed_contact_trace" : surpressed_contact_trace, 
+    #                 "surpressed_contact_onset_times" : surpressed_contact_onset_times, 
+    #                 "stim_onset_times" : stim_onset_times, 
+    #                 "audio_onset_times" : audio_onset_times, 
+    #                 "stim_trace" : stim_trace, 
+    #                 "audio_trace" : audio_trace
+    #             }
+    #             processed_var_lists_by_bpm.append(var_dict)
                 
                 
-                ## check delays markers
-                # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \
-                #     x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
-                # ax = plt.gca()
-                # ax.scatter(delays_list, np.ones_like(delays_list), s=20)
+    #             ## check delays markers
+    #             # plot_contact_trace_and_rhythm(surpressed_contact_trace, x_vec, stim_trace,  audio_trace, \
+    #             #     x_vec, header_dict['samp_period_ms'], legend_labels, title_str)
+    #             # ax = plt.gca()
+    #             # ax.scatter(delays_list, np.ones_like(delays_list), s=20)
 
-                # check stim accuracy
-                if bpm_index == 0 and rhythm_index == 0:
-                    x_vec_array = np.array(x_vec)
-                    bool_selector = np.logical_and((x_vec_array > delays_list[2]), (x_vec_array < delays_list[3]))
-                    title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check raw trace"
-                    plot_contact_trace_and_rhythm(reading_list_interped[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
-                        x_vec[bool_selector], ems_constants.analysis_sample_period, legend_labels, title_str)
-                    title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check spikes"
-                    plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
-                        x_vec[bool_selector], ems_constants.analysis_sample_period, legend_labels, title_str)
+    #             # check stim accuracy
+    #             if bpm_index == 0 and rhythm_index == 0:
+    #                 x_vec_array = np.array(x_vec)
+    #                 bool_selector = np.logical_and((x_vec_array > delays_list[2]), (x_vec_array < delays_list[3]))
+    #                 title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check raw trace"
+    #                 plot_contact_trace_and_rhythm(reading_list_interped[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+    #                     x_vec[bool_selector], ems_constants.analysis_sample_period, legend_labels, title_str)
+    #                 title_str = f"{header_dict['rhythm_strings_names'][rhythm_index]}, bpm: {bpm}, stim phase check spikes"
+    #                 plot_contact_trace_and_rhythm(surpressed_contact_trace[bool_selector], x_vec[bool_selector], stim_trace[bool_selector],  audio_trace[bool_selector], \
+    #                     x_vec[bool_selector], ems_constants.analysis_sample_period, legend_labels, title_str)
 
 
         
             
 
-        print(f"dumping {file_stems[session_number]}.")
-        processed_vars_dict = {
-            "read_me" : "this dictionary contains the vars_by_rhythm_and_bpm variable which is a list of lists of dictionaries. The first list is by rhythm, the second by bpm. dictionaries contain preprocessed variables for tapping performance and ground truth. header_dict contains metadata such as the rhythms and bpms and participant and time of trial.",
-            "vars_by_rhythm_and_bpm" : processed_vars_by_rhythm,
-            "header_dict" : header_dict
-        }
-        with open(f"data/processed_{file_stems[session_number]}.pkl", "wb") as pkl_handle:
-            pickle.dump(processed_vars_dict, pkl_handle)
+    #     print(f"dumping {file_stems[session_number]}.")
+    #     processed_vars_dict = {
+    #         "read_me" : "this dictionary contains the vars_by_rhythm_and_bpm variable which is a list of lists of dictionaries. The first list is by rhythm, the second by bpm. dictionaries contain preprocessed variables for tapping performance and ground truth. header_dict contains metadata such as the rhythms and bpms and participant and time of trial.",
+    #         "vars_by_rhythm_and_bpm" : processed_vars_by_rhythm,
+    #         "header_dict" : header_dict
+    #     }
+    #     with open(f"data/processed_{file_stems[session_number]}.pkl", "wb") as pkl_handle:
+    #         pickle.dump(processed_vars_dict, pkl_handle)
