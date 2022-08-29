@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from openpyxl import load_workbook
 from ems_test import process_contact_trace_to_hit_times
+from ems_test import initial_preprocess_and_plot
 from ems_test import plot_contact_trace_and_rhythm
 import glob
 import quantities as pq
@@ -30,8 +31,11 @@ import time
 from ems_test_analysis import pull_repeat_times
 from ems_test_analysis import plot_each_block
 from ems_test_analysis import determine_delays_list
+from math import log10, floor
 from ems_test_analysis import plot_test_blocks
 
+def round_sig(x, sig=2):
+    return round(x, sig-int(floor(log10(abs(x))))-1)
 
 def pull_phase_times(first_audio, rhythm, bpm, block_repeats_list):
 
@@ -45,7 +49,9 @@ def pull_phase_times(first_audio, rhythm, bpm, block_repeats_list):
         phase_length_ms = phase_length_repeats * rhythm_time
         time_var = time_var + phase_length_ms
     phase_times.append(time_var) # book end
-    return phase_times
+    # make sure you include early taps! by moving all phase times back by an eighthnote
+    phase_times_out = [phase_time - eighthnote_length for phase_time in phase_times]
+    return phase_times_out
 
 def sine_generator(fs, sinefreq, duration):
     T = duration
@@ -191,7 +197,7 @@ def count_time_readings(worksheet, column):
     time_readings_length = counter-2
     return time_readings_length
 
-def read_array_values(time_readings_lengths, variables_number, worksheet, worksheet_data_begin_indices):
+def read_array_values(time_readings_length, variables_number, worksheet, worksheet_data_begin_indices, stim_times_flag):
     arr = np.empty([time_readings_length, variables_number]) 
     arr[:] = np.NaN
     for r in range(time_readings_length):
@@ -199,16 +205,26 @@ def read_array_values(time_readings_lengths, variables_number, worksheet, worksh
             arr[r][c] = worksheet.cell(row=r + worksheet_data_begin_indices[0], column=c + worksheet_data_begin_indices[1]).value
     contact_x_values = arr[:, 0]
     reading_list = arr[:, 1]
-    stim_onsets_temp = arr[:, 2]
-    stim_onset_times = stim_onsets_temp[~np.isnan(stim_onsets_temp)] # take care of nans that make array work
-    audio_onsets_temp = arr[:, 3]
-    audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
-    return contact_x_values, reading_list, audio_onset_times, stim_onset_times
+    if stim_times_flag:
+        stim_onsets_temp = arr[:, 2]
+        stim_onset_times = stim_onsets_temp[~np.isnan(stim_onsets_temp)] # take care of nans that make array work
+        audio_onsets_temp = arr[:, 3]
+        audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
+        return contact_x_values, reading_list, audio_onset_times, stim_onset_times
+    else:
+        audio_onsets_temp = arr[:, 2]
+        audio_onset_times = audio_onsets_temp[~np.isnan(audio_onsets_temp)]
+        return contact_x_values, reading_list, audio_onset_times
 
         
 def chop_traces(k, surpressed_contact_onset_times, surpressed_contact_trace, audio_onset_times, audio_trace, delays_list, x_values, bpm):
     loop_begin = delays_list[k] - 0.5*30000/bpm #include half an eighthnote before
-    loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
+    # loop_end = delays_list[k+1] + 1 * 30000/bpm #include half an eighthnote after as well
+    onset_times_after_end_of_trace = audio_onset_times[audio_onset_times > delays_list[k+1]]
+    if onset_times_after_end_of_trace[0] is not None:
+        loop_end = onset_times_after_end_of_trace[0] + 0.5*30000/bpm # the first onset time after is where it should end. plus buffer.
+    else:
+        loop_end = delays_list[k+1] + 0.5*30000/bpm    
     contact_bool = np.logical_and((surpressed_contact_onset_times >= loop_begin), (surpressed_contact_onset_times <= loop_end)) # select contact onset times during this loop of rhythm
     audio_bool = np.logical_and((audio_onset_times >= loop_begin), (audio_onset_times <= loop_end)) # select audio onset times during this loop of rhythm
     spike_times_contact = surpressed_contact_onset_times[contact_bool] - loop_begin # how many spikes total?
@@ -273,13 +289,13 @@ def craft_x_vec(list_of_onsets):
     return np.arange(mini, maxi, stepsize)
 
 def count_intervals(rhyth_string):
-    zero_counter = 0
+    zero_counter = 0 # starts at 1 because minimal interval is 1
     intervs = []
     for i in range(len(rhyth_string)):
         if rhyth_string[i] == '0':
             zero_counter += 1 # add to interval
         if rhyth_string[i] == '1':
-            intervs.append(zero_counter) # save interval
+            intervs.append(zero_counter+1) # save interval plus one as it's not just zeros between but also min interval is 1.
             zero_counter = 0 # reset counter
     if zero_counter == len(rhyth_string): # no intervals, empty string
         unique_intervals = []
@@ -380,7 +396,7 @@ def pull_scaled_asynchronies(unique_intervals_ms, audio_onset_times, contact_ons
     scaled_asynchronies_list = []
     # get the audio and the contact times 
     # get the ground truth intervals and the user produced intervals 
-    ground_truth_intervals, user_intervals = accumulate_intervals(audio_onset_times, contact_onset_times)
+    ground_truth_intervals, user_intervals, user_error = accumulate_intervals(audio_onset_times, contact_onset_times)
     for j in range(len(ground_truth_intervals)): # for every ground truth interval
         # get the closest unique interval (classify)
         distances_to_known_intervals = np.abs(unique_intervals_ms - ground_truth_intervals[j])
@@ -444,7 +460,7 @@ def accumulate_intervals(audio_onset_times, contact_onset_times): ## NEED TO REV
         user_interval = contact_onset_times[arg_min] - audio_onset_times[j]#response time user - previous audio pulse
         if user_interval <= 0:
             user_interval = np.nan
-            # raise ValueError("user interval less than 0")
+            warnings.warn("user interval less than 0")
         ground_truth_intervals.append(gt_interval)
         user_intervals.append(user_interval)
         user_error.append(np.abs(gt_interval-user_interval))
@@ -475,19 +491,13 @@ def get_all_intervals(header_dict, audio_onset_times, delays_list, surpressed_co
         var_lists.append(var_list) # now has each WK relevant variable for each phase
     return var_lists
 
-def surpress(audio_trace, surpressed_contact_trace):
+def surpress(trace_in):
 # change to pure spikes (complete surround surpression)
-    audio_trace_copy = np.copy(audio_trace)
-    for j in range(len(audio_trace)-1):
-        if audio_trace_copy[j] == 1:
-            audio_trace[j+1] = 0
-    
-    contact_trace_copy = np.copy(surpressed_contact_trace)
-    for j in range(len(surpressed_contact_trace)-1):
-        if contact_trace_copy[j] == 1:
-            surpressed_contact_trace[j+1] = 0
-    return surpressed_contact_trace, audio_trace
-
+    trace_copy = np.copy(trace_in)
+    for j in range(len(trace_in)-1):
+        if trace_in[j] == 1:
+            trace_copy[j+1] = 0
+    return trace_copy
 
 
 def bar_plot_scores(names, scores, errors, title, ylabel):
@@ -530,34 +540,39 @@ def trace_surpress(reading_list, x_times, memory_ms): # for every time point alo
 
 class PerformanceScores:
     # PerformanceScore objects have EMD MAD and VAD scores calculated from trace and onset times.
-    def __init__(self, rhythm, bpm, processed_contact_trace, processed_contact_onset_times, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace):
+    def __init__(self, rhythm, bpm, contact_trace, contact_onset_times, contact_onset_times_trace, common_time_vals, stim_onset_times, audio_onset_times, stim_trace, audio_trace, samp_period):
         self.rhythm = rhythm
-        self.processed_contact_trace = processed_contact_trace
-        self.processed_contact_onset_times = processed_contact_onset_times
+        self.contact_trace = contact_trace
+        self.contact_onset_times = contact_onset_times
+        self.contact_onset_times_trace = contact_onset_times_trace
         self.common_time_vals = common_time_vals
         self.stim_onset_times = stim_onset_times
         self.audio_onset_times = audio_onset_times
         self.stim_trace = stim_trace
         self.audio_trace = audio_trace
+        self.samp_period = samp_period
 
         # get unique intervals from rhythm
         _, unique_intervals  = count_intervals(rhythm)
         ms_per_eighthnote = 30000/bpm
         unique_intervals_ms = [i*ms_per_eighthnote for i in unique_intervals]
-
+        plot_flag = 1
         self.scaled_asynchronies_list, \
             self.unscaled_asynchronies_matrix, \
             self.unique_intervals_ms = pull_scaled_asynchronies(unique_intervals_ms, \
-                self.audio_onset_times, self.processed_contact_onset_times)
+                self.audio_onset_times, self.contact_onset_times, plot_flag)
 
-        self.emd = self.score_emd(self)
+        self.emd = self.score_emd()
 
-        self.mad, self.vad = self.score_mad_vad(self)
+        self.mad, self.vad, self.mad_unscaled, self.vad_unscaled = self.score_mad_vad()
+
+        self.show_scores()
+
 
     def score_emd(self):
-        times_a = self.processed_contact_onset_times
+        times_a = self.contact_onset_times
         times_b = self.audio_onset_times
-        trace_a = self.processed_contact_trace
+        trace_a = self.contact_trace
         trace_b = self.audio_trace
         emd = earth_movers_distance(times_a, times_b, trace_a, trace_b)
         return emd
@@ -567,19 +582,20 @@ class PerformanceScores:
         mad = np.mean(np.abs(self.scaled_asynchronies_list))
         vad = np.std(self.scaled_asynchronies_list)
         flat_unscaled_intervals_list = [j for sub in self.unscaled_asynchronies_matrix for j in sub]
-        mean_unsigned_unscaled_asynchrony = np.mean(flat_unscaled_intervals_list)# this shows if there's a constant offset
-        return mad, vad, mean_unsigned_unscaled_asynchrony
+        mad_unscaled = np.mean(flat_unscaled_intervals_list)# this shows if there's a constant offset
+        vad_unscaled = np.std(flat_unscaled_intervals_list)# this shows if it's regular
+        return mad, vad, mad_unscaled, vad_unscaled
 
-    def show_scores():
-        raise ValueError("not implemented!")
-        # implement plot that shows contact_trace, 
-        # contact_onset_times, audio_onset_times, asynchrony histogram, EMD, MAD and VAD
+    def show_scores(self):
+        # total spikes contact: {len(self.contact_onset_times)}, total_spikes audio: {len(self.audio_onset_times)}
+        title = f" emd = {str(round_sig(self.emd, 3))}, mad_unscaled = {str(round_sig(self.mad_unscaled, 3))}, vad_unscaled = {str(round_sig(self.vad_unscaled, 3))}, \n mad = {str(round_sig(self.mad))}, vad = {str(round_sig(self.vad))}" 
+        plot_traces(self.common_time_vals, [self.contact_onset_times_trace, self.audio_trace], self.samp_period, ["contact", "audio"], title)
 
 
 class TraceData:
     # tracedata objects
     # rhythm_index is the index of the rhythm in header dict, i.e., header_dict["rhythm_strings_names"][rhythm_index] gives this name.
-    def __init__(self, header_dict, rhythm_index, contact_trace, x_times_contact, x_times_audio, x_times_stim=None, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, processed_contact_onset_times=None):
+    def __init__(self, header_dict, rhythm_index, contact_trace, time_axis_contact, audio_onset_times, stim_onset_times=None, audio_trace=None, stim_trace=None, processed_contact_trace=None, common_time_vals=None, contact_onset_times=None, test_train_naive_mode = None, condition = None, ppt_number= None, onset_times_trace = None):
         self.contact_trace = contact_trace # this is always used!
         self.header_dict = header_dict
         self.contact_trace_interped = 0
@@ -588,22 +604,27 @@ class TraceData:
         self.stim_audio_traces_created = 0
         self.contact_onsets_created = 0
         self.trials_scored = 0
-        self.x_times_contact = x_times_contact
-        self.x_times_audio = x_times_audio
-        self.x_times_stim = x_times_stim
+        self.time_axis_contact = time_axis_contact
+        self.audio_onset_times = audio_onset_times
+        self.stim_onset_times = stim_onset_times
         self.audio_trace = audio_trace
         self.stim_trace = stim_trace
-        self.processed_contact_trace = processed_contact_trace
         self.common_time_vals = common_time_vals
-        self.processed_contact_onset_times = processed_contact_onset_times
+        self.contact_onset_times = contact_onset_times
         self.rhythm_index = rhythm_index
+        self.test_train_naive_mode = test_train_naive_mode
+        self.condition = condition 
+        self.ppt_number = ppt_number
+        self.onset_times_trace = onset_times_trace
+
     
     def interpolate_contact_trace(self):
     # interpolate raw contact trace
         if not(self.contact_trace_interped):
             input_contact_trace  = self.contact_trace
             self.common_time_vals, \
-                self.contact_trace =  interpolate(input_contact_trace, self.x_times_contact, ems_constants.analysis_sample_period)
+                self.contact_trace =  interpolate(input_contact_trace, self.time_axis_contact, ems_constants.analysis_sample_period)
+            self.contact_trace_interped = 1
         else:
             warnings.warn("contact trace already interpolated.")
         return
@@ -616,6 +637,7 @@ class TraceData:
             input_contact_trace  = self.contact_trace
             self.contact_trace = input_contact_trace
             warnings.warn("FILTER NOT IMPLEMENTED")
+            self.contact_trace_filtered = 1
         else:
             warnings.warn("contact trace already filtered.")
         return
@@ -639,9 +661,9 @@ class TraceData:
         if self.stim_audio_traces_created:
             warnings.warn("stim and audio traces already created. Not recreating.")
         else: 
-            audio_hold = 30000/self.header_dict['bpm']
-            self.stim_trace = spike_times_to_traces(self.x_times_stim, self.header_dict['actual_stim_length'], self.common_time_vals, ems_constants.analysis_sample_period)
-            self.audio_trace = spike_times_to_traces(self.x_times_audio, audio_hold, self.common_time_vals, ems_constants.analysis_sample_period)
+            audio_hold = 30000/self.header_dict['bpms'][0]
+            self.stim_trace = spike_times_to_traces(self.stim_onset_times, self.header_dict['actual_stim_length'], self.common_time_vals, ems_constants.analysis_sample_period)
+            self.audio_trace = spike_times_to_traces(self.audio_onset_times, audio_hold, self.common_time_vals, ems_constants.analysis_sample_period)
             self.stim_audio_traces_created = 1
         return
 
@@ -651,8 +673,8 @@ class TraceData:
         if self.contact_onsets_created:
             warnings.warn("contact onsets already created. Not recreating.")
         else: 
-            first_audio = self.x_times_audio[0]
-            last_audio = self.x_times_audio[-1]
+            first_audio = self.audio_onset_times[0]
+            last_audio = self.audio_onset_times[-1]
                     
             # determine when each contact/hit began
             surpressed_contact_onset_times_not_chopped = process_contact_trace_to_hit_times(self.contact_trace, self.common_time_vals, ems_constants.baseline_subtractor, ems_constants.surpression_window)
@@ -665,13 +687,28 @@ class TraceData:
             self.contact_onsets_created = 1
         return
 
-    def chop_object_traces(self):
+    def chop_and_score_object_traces(self):
         trace_data_list = []
         for i in range(len(self.phase_times) - 1):
-            spike_times_contact, spike_times_audio, contact_trace_selected, audio_trace_selected, x_times_selected, trace_selector_bool = chop_traces(i, self.contact_onset_times, self.contact_trace, self.x_times_audio, self.audio_trace, self.phase_times, self.common_time_vals, self.header_dict['bpm'])
-            trace_object = TraceData(self.header_dict, self.rhythm_index, contact_trace_selected, x_times_selected, x_times_selected,  audio_trace=audio_trace_selected, common_time_vals=x_times_selected, processed_contact_onset_times=spike_times_contact)
+            contact_onset_times_selected, \
+            audio_onset_times_selected, contact_trace_selected, \
+            audio_trace_selected, common_time_vals_selected, \
+            trace_selector_bool = chop_traces(i, self.contact_onset_times, self.contact_trace, self.audio_onset_times, self.audio_trace, self.phase_times, self.common_time_vals, self.header_dict['bpms'][0])
+            
+            trace_object = TraceData(header_dict=self.header_dict, rhythm_index=self.rhythm_index, \
+                contact_trace=contact_trace_selected, \
+                time_axis_contact =common_time_vals_selected, \
+                audio_onset_times = audio_onset_times_selected, \
+                audio_trace=audio_trace_selected, \
+                common_time_vals=common_time_vals_selected, \
+                contact_onset_times=contact_onset_times_selected, \
+                test_train_naive_mode=self.test_train_naive_mode, \
+                condition=self.condition, \
+                ppt_number=self.ppt_number, \
+                onset_times_trace=contact_trace_selected)
             trace_object.score_trace()
             trace_data_list.append(trace_object)
+        return trace_data_list
 
 
     def find_and_score_trial_section_and_repeat_times(self):
@@ -679,9 +716,12 @@ class TraceData:
             warnings.warn("must create contact onset times first.")
         if self.trials_scored:
             warnings.warn("Trials already scored.")
+
+        if not(self.stim_audio_traces_created):
+            warnings.warn("must create audio and stim traces.")
         else: 
             # # the times including the first and last of each repeat beginning and end
-            # self.repeat_times = pull_repeat_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"], self.header_dict["phase_flags_list"])
+            # self.repeat_times = pull_repeat_times(self.audio_onset_times[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"], self.header_dict["phase_flags_list"])
             # # trace objects for each repeat
             # num_repeats = len(self.repeat_times) - 1
             # for i in range(num_repeats):
@@ -693,34 +733,41 @@ class TraceData:
             # self.repeat_associated_phase_list = 
             
             # the times including first and last of each phase
-            self.phase_times = pull_phase_times(self.x_times_audio[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpm"], self.header_dict["phase_repeats_list"])
+            self.phase_times = pull_phase_times(self.audio_onset_times[0], self.header_dict["rhythm_strings"][self.rhythm_index], self.header_dict["bpms"][0], self.header_dict["phase_repeats_list"])
             # trace objects for each phase
-            self.phase_trace_data_list = self.chop_object_traces()
+
+            # self.check_demarcation(self.phase_times, [], "checking phase times calculation")
+
+            self.phase_trace_data_list = self.chop_and_score_object_traces()
             # performance objects for each phase
-            self.phase_performance_data_list = [item.performance() for item in self.phase_trace_data_list]
+            self.phase_performance_data_list = [item.performance for item in self.phase_trace_data_list]
             # list with same length containing names for each phase ('preaudio', 'exp', 'postaudio', 'test')
 
             self.phase_name_list = []
             phases = ['preaudio', 'exp', 'postaudio', 'test']
-            number_of_phase_repeats = len(self.phase_times)/4
-            for i in range(len(number_of_phase_repeats)):
+            number_of_phase_repeats = int((len(self.phase_times)-1)/4)
+            for i in range(number_of_phase_repeats):
                 self.phase_name_list = self.phase_name_list + phases
             self.trials_scored = 1
 
     def check_demarcation(self, demarcation_times, legend_labels, title_str):
         ## check delays markers by plotting
-        self.show_trace(self.header_dict['samp_period_ms'], legend_labels, title_str)
-        ax = plt.gca()
+        self.show_trace(self.onset_times_trace, self.common_time_vals, title_str)
+        fig = plt.gcf()
+        ax = fig.axes[0]
         ax.scatter(demarcation_times, np.ones_like(demarcation_times), s=20)
 
     def score_trace(self):
-        self.performance = PerformanceScores(processed_contact_trace=self.processed_contact_trace, \
-            processed_contact_onset_times= self.processed_contact_onset_times, \
+        self.performance = PerformanceScores(self.header_dict['rhythm_strings'][self.rhythm_index], self.header_dict['bpms'][0], \
+            contact_trace=self.onset_times_trace, \
+            contact_onset_times= self.contact_onset_times, \
+            contact_onset_times_trace = self.onset_times_trace, \
             common_time_vals=self.common_time_vals, \
-            stim_onset_times=self.x_times_stim, \
-            audio_onset_times=self.x_times_audio,\
+            stim_onset_times=self.stim_onset_times, \
+            audio_onset_times=self.audio_onset_times,\
             stim_trace = self.stim_trace, \
-            audio_trace= self.audio_trace)
+            audio_trace= self.audio_trace, \
+            samp_period=self.header_dict['samp_period_ms'])
 
     def preprocess_and_score_trace(self):
 
@@ -728,25 +775,55 @@ class TraceData:
 
             self.interpolate_contact_trace()
 
+            self.show_trace(self.contact_trace, self.common_time_vals, "after interpolation")
+
+
             # filter contact trace
 
             self.filter_raw_contact_trace()
+
+            self.show_trace(self.contact_trace, self.common_time_vals, "after filtering raw contact trace")
 
             # surpress trace
 
             self.trace_surpress()
 
+            self.show_trace(self.contact_trace, self.common_time_vals, "after trace surpress")
+
+            # determine contact onset times
+
+            self.determine_contact_onset_times()
+
+            self.show_trace(self.onset_times_trace, self.common_time_vals, "after determining contact onset times ")
+
             # create stim and audio traces
 
             self.create_stim_audio_traces()
 
+            self.find_and_score_trial_section_and_repeat_times()
+
+            
+
+            
+
             # find demarcating time stamps
             
-            self.find_and_score_trial_section_and_repeat_times()
+            # self.find_and_score_trial_section_and_repeat_times()
 
             # score every
 
-    # def show_trace(self):
+    def show_trace(self, trace, time_vals, extra_string):
+        rhythm_name_mode = f"{extra_string} ppt. {self.ppt_number} {self.header_dict['rhythm_strings_names'][self.rhythm_index]} {self.test_train_naive_mode} [{self.condition}]"
+        
+        # if there are stim times use first stim time if not use first audio time.
+        if self.stim_onset_times is None:
+            start_time = min(self.audio_onset_times)
+        else:
+            start_time = min(self.stim_onset_times)
+        
+        initial_preprocess_and_plot(trace, time_vals, \
+            self.header_dict['bpms'][0], self.header_dict["rhythm_strings"][self.rhythm_index], \
+            rhythm_name_mode, self.stim_onset_times, self.audio_onset_times, start_time)
 
 class ParticipantPerformance:
 
@@ -833,6 +910,7 @@ if __name__ == '__main__':
             with open(pkl_file, "rb") as pkl_handle:
                 raw_vars_dict = pickle.load(pkl_handle)
             header_dicts = raw_vars_dict['header_dicts']
+            pp_number = header_dicts[0]["pp number"]
             wbs = raw_vars_dict['workbooks']
         else:
             raise ValueError("load mode not specified.")
@@ -858,7 +936,6 @@ if __name__ == '__main__':
 
             # xlsx parser does not do 0-start counting
             worksheet_data_begin_indices = [val + 1 for val in header_dict["worksheet_data_begin_indices"]]
-            variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
             
             rhythm_strings = header_dict["rhythm_strings"]
             rhythm_strings_names = header_dict["rhythm_strings_names"]
@@ -874,27 +951,34 @@ if __name__ == '__main__':
                 time_readings_length_test = count_time_readings(worksheet, column = 5) # test col for times
                 time_readings_length_naive = count_time_readings(worksheet, column = 8) # naive col for times
                 starting_coordinates_train = [2,1]
-                starting_coordinates_test = [5,1]
-                starting_coordinates_naive = [8,1]
+                starting_coordinates_test = [2,5]
+                starting_coordinates_naive = [2,8]
 
                 ## make the appropriate size data array and read in values.
 
                 # each variable is a dictionary with keys to 3 vectors: 'train' 'test' 'naive' presentations. train and test always have the same rhythm. train is always longer. test is shorter. naive is test length.
                 stim_times_flag = 1 # train has stim times
-                contact_x_values_train, reading_list_train,  audio_onset_times_train, stim_onset_times_train, = read_array_values(time_readings_length_train, worksheet, starting_coordinates_train, stim_times_flag)
-        
+                variables_number = 4   # time_readings, contact trace, stim_onsets, audio_onsets
+                contact_x_values_train, reading_list_train,  audio_onset_times_train, stim_onset_times_train, = read_array_values(time_readings_length_train, variables_number, worksheet, starting_coordinates_train, stim_times_flag)
                 stim_times_flag = 0 # test has no stim times
-                contact_x_values_test, reading_list_test,  audio_onset_times_test = read_array_values(time_readings_length_test, worksheet, starting_coordinates_test, stim_times_flag)
-        
+                variables_number = 3   # time_readings, contact trace, audio_onsets
+                contact_x_values_test, reading_list_test,  audio_onset_times_test = read_array_values(time_readings_length_test, variables_number, worksheet, starting_coordinates_test, stim_times_flag)
                 stim_times_flag = 0 # naive has no stim times
-                contact_x_values_naive, reading_list_naive,  audio_onset_times_naive = read_array_values(time_readings_length_naive, worksheet, starting_coordinates_naive, stim_times_flag)
+                variables_number = 3   # time_readings, contact trace,  audio_onsets
+                contact_x_values_naive, reading_list_naive,  audio_onset_times_naive = read_array_values(time_readings_length_naive, variables_number, worksheet, starting_coordinates_naive, stim_times_flag)
         
-
+                    
                 # create TraceData from each trace
-                trace_data_object = TraceData(contact_trace=reading_list, x_times_contact=contact_x_values, \
-                    x_times_audio=audio_onset_times, x_times_stim=stim_onset_times)
+                trace_data_train = TraceData(header_dict, rhythm_index, reading_list_train, contact_x_values_train, \
+                    audio_onset_times_train, stim_onset_times=stim_onset_times_train, test_train_naive_mode= "train", condition = condition, ppt_number=pp_number)
+                trace_data_test = TraceData(header_dict, rhythm_index, reading_list_test, contact_x_values_test, \
+                    audio_onset_times_test, test_train_naive_mode= "test", condition = condition, ppt_number=pp_number)
+                trace_data_naive = TraceData(header_dict, rhythm_index, reading_list_naive, contact_x_values_naive, \
+                    audio_onset_times_naive, test_train_naive_mode= "naive", condition = condition, ppt_number=pp_number)
 
-                trace_data_object.preprocess_and_score_trace()
+                trace_data_train.preprocess_and_score_trace()
+                trace_data_test.preprocess_and_score_trace()
+                trace_data_naive.preprocess_and_score_trace()
 
         # create session dict
 

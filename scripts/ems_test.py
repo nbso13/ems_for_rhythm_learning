@@ -488,7 +488,6 @@ def plot_contact_trace_and_rhythm_and_last_milliseconds(reading_list, contact_x_
     axes[1].plot(x_array_selected, audio_trace_selected*np.max(reading_list_selected))
     axes[1].legend(legend_labels)
 
- 
     
     select_bool_contact_x = np.logical_and(contact_x_array > stim_start_time_ms,  contact_x_array < (stim_start_time_ms + milliseconds_to_view))
     contacts_selected = contact_x_array[select_bool_contact_x]
@@ -1066,8 +1065,16 @@ def initial_preprocess_and_plot(reading_list, contact_x_values, bpm, rhythm, rhy
 
     audio_hold = 30000/bpm # this math gives the length of time in milliseconds for eighthnote duration
     x_vec = np.arange(0, np.max(contact_x_values), ems_constants.samp_period_ms)
-    stim_trace = spike_times_to_traces(stim_onset_times, ems_constants.actual_stim_length,  \
-        x_vec, ems_constants.samp_period_ms)
+    
+    # if there are stim onset times
+    if stim_onset_times is not None:
+        stim_trace = spike_times_to_traces(stim_onset_times, ems_constants.actual_stim_length,  \
+            x_vec, ems_constants.samp_period_ms)
+        # make a trace
+    else:
+        # otherwise just
+        stim_trace = np.zeros_like(x_vec)
+
     audio_trace = spike_times_to_traces(audio_onset_times, audio_hold, x_vec, ems_constants.samp_period_ms)
 
     legend_labels = ["contact trace", "stim trace", "audio trace"]

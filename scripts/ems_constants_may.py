@@ -53,7 +53,7 @@ day_num = int(input("experiment day number? (1, 2, or 3): ")) - 1
 rhythm_strings = [easies[day_num], mediums[day_num], diffs[day_num]] 
 naive_rhythm_strings = [naive_easies[day_num], naive_mediums[day_num], naive_diffs[day_num]]
 rhythm_strings_names = [f"easy_{day_num+1}", f"medium_{day_num+1}", f"difficult_{day_num+1}" ]
-naive_rhythm_string_names = [f"naive_easy_{day_num+1}", f"naive_medium_{day_num+1}", f"naive_difficult_{day_num+1}" ]
+naive_rhythm_strings_names = [f"naive_easy_{day_num+1}", f"naive_medium_{day_num+1}", f"naive_difficult_{day_num+1}" ]
 # rhythm_strings = [to_the_beat_substr, flip_the_beat, random_three_march_22, random_four_march_22, to_the_beat_substr, flip_the_beat,  random_three_march_22, random_four_march_22] 
 # random_one_march_22, random_two_march_22, random_three_march_22, random_four_march_22
 # lunch_room_beat, seven_to_four, three_to_four_substr, bass_drum_pattern, five_to_four_substr, syncopated_substr, telescoping, flip_the_beat, clave_substr
@@ -124,7 +124,7 @@ phase_change_warnings_delay = 2000 # ms before phase change to warn participant
 verbose_mode = 0
 channel = 0
 read_buffer_time_val = 2000 # ms added to read length in order to capture the end of the contact trace
-chopping_buffer = 150 # ms, amount of time before first audio pulse and after last audio pulse where contact is recorded.
+chopping_buffer = 300 # ms, amount of time before first audio pulse and after last audio pulse where contact is recorded.
 cutoff_freq_low = 0.005 # 100 ms longest wave length component before attenuation during high pass filtering
 cutoff_freq_high = 0.1 # 20 ms shortest allowed wave 
 level_zero_probability = 0.891 # Hayden motzart
